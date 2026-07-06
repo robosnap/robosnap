@@ -10,6 +10,10 @@
   <a href="#quick-start-gui"><img src="https://img.shields.io/badge/GUI-Quick_Start-345995" alt="GUI Quick Start"></a>
 </p>
 
+<p align="center">
+  <img src="assets/gui_preview.png" alt="RoboSnap GUI preview" width="900">
+</p>
+
 RoboSnap reconstructs real-world scenes as reusable simulation-ready environments. The first public release is GUI-first: interactive video/image segmentation, mask management, mask-to-3D asset generation, scene composition, and articulated-object refinement through a separate Articulate Tool page.
 
 ## Release Roadmap
