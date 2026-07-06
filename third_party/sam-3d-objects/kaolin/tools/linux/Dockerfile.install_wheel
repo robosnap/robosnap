@@ -1,0 +1,75 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+RUN if [ -f /etc/apt/sources.list.d/cuda.list ]; then \
+        rm /etc/apt/sources.list.d/cuda.list; \
+    fi \
+    && if [ -f /etc/apt/sources.list.d/nvidia-ml.list ]; then \
+        rm /etc/apt/sources.list.d/nvidia-ml.list; \
+    fi
+
+WORKDIR /kaolin
+
+ARG WHEEL_NAME
+
+COPY ./package.json ./package-lock.json ./${WHEEL_NAME} ./
+COPY ./examples ./examples
+COPY ./sample_data ./sample_data
+COPY ./tests ./tests
+COPY ./tools ./tools
+RUN apt-get -y update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        libgl1-mesa-dev \
+        libgles2-mesa-dev \
+        libegl1-mesa-dev \
+        git \
+        pkg-config \
+        libatk1.0-0 \
+        libatk-bridge2.0-0 \
+        libasound2 \
+        libgtk2.0-0 \
+        libgtk-3-0 \
+        libnss3 \
+        libglvnd0 \
+        libgl1 \
+        libglx0 \
+        libegl1 \
+        libgles2 \
+        libglvnd-dev \
+        curl \
+        cmake \
+        xvfb \
+        wget \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# for GLEW
+ENV LD_LIBRARY_PATH /usr/lib64:/usr/local/cuda/lib64:/usr/local/cuda/lib:${LD_LIBRARY_PATH}
+
+# nvidia-container-runtime
+#ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES compute,utility,graphics
+
+# Default pyopengl to EGL for good headless rendering support
+ENV PYOPENGL_PLATFORM egl
+
+## Install Dash3D Requirements ###
+RUN curl -fsSL https://deb.nodesource.com/setup_16.x --insecure | bash - \
+    && apt-get install -y nodejs
+
+RUN npm install -g npm@8.5.4
+RUN npm install
+
+RUN pip install --upgrade pip && pip install ninja
+
+RUN cd /tmp && \
+    git clone https://github.com/NVlabs/nvdiffrast && \
+    cd nvdiffrast && \
+    cp ./docker/10_nvidia.json /usr/share/glvnd/egl_vendor.d/10_nvidia.json && \
+    pip install .
+
+RUN pip install ./${WHEEL_NAME}

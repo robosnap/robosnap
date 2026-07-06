@@ -1,0 +1,17 @@
+# Note: Keep C:\Program Files (x86)\Microsoft Visual Studio\Installer directory.
+#       disutils/setuptools calls vswhere.exe from that location unconditionally.
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+WORKDIR /kaolin
+
+COPY . .
+
+# NOTE: pin setuptools to avoid directory copy bug
+RUN pip install --upgrade --no-cache-dir certifi ninja
+RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host pypi.python.org \
+    --trusted-host files.pythonhosted.org -r tools/build_requirements.txt
+
+RUN python setup.py bdist_wheel --dist-dir .
+RUN Get-ChildItem "./" -Filter "*.whl" | Foreach-Object {$filepath=$_.FullName; pip install $filepath}

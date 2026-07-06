@@ -1,0 +1,50 @@
+# Runtime data
+checkpoints/*
+!checkpoints/.gitkeep
+outputs/*
+!outputs/.gitkeep
+data/
+*.log
+
+# Local env files
+configs/gui.env
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+
+# Large generated artifacts
+*.mp4
+*.glb
+*.ply
+*.usd
+*.usdz
+
+.DS_Store
+staging/
+tmp/
+dist/
+.pytest_cache/
+robosnap/gui/RoboSnapGUI copy/
+
+# First GUI release excludes future pipeline modules
+robosnap/alignment/
+robosnap/background/
+robosnap/datasets/
+robosnap/pose/
+robosnap/preprocess/
+robosnap/refinement/
+robosnap/rendering/
+# Non-GUI third-party snapshots staged for later releases
+third_party/DiffusionLight/
+third_party/FoundationPose/
+third_party/vggt/
+third_party/lyra/
+third_party/vipe/
+third_party/Grounded-SAM-2/
+# Small checked-in GUI demo input
+!examples/video.mp4
+

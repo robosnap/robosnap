@@ -1,0 +1,18 @@
+[project]
+name = "robosnap"
+version = "0.1.0"
+description = "GUI-first real-to-sim asset annotation and generation toolkit."
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+  "gradio",
+  "opencv-python",
+  "numpy",
+  "pillow",
+  "torch",
+]
+
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["robosnap", "robosnap.gui", "robosnap.gui.*"]

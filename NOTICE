@@ -1,0 +1,19 @@
+RoboSnap
+Copyright 2026 RoboSnap authors
+
+This repository's first-party source code is licensed under the Apache
+License, Version 2.0. See LICENSE.
+
+The top-level Apache-2.0 license applies only to first-party RoboSnap code,
+including the public GUI package, launch scripts, configuration templates,
+documentation, and release-check helpers, unless a file states otherwise.
+
+Third-party source snapshots under third_party/ remain under their upstream
+licenses. Their upstream LICENSE, NOTICE, COPYING, AUTHORS, or equivalent
+files are retained in place and govern those components. Adapted third-party
+files are distributed as modifications of the upstream projects and remain
+subject to the upstream license terms for those projects.
+
+Model checkpoints, pretrained weights, datasets, generated assets, and local
+runtime outputs are not licensed by this top-level NOTICE or LICENSE. They are
+covered by their own upstream terms or dataset release terms.
