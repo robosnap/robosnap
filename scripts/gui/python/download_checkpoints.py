@@ -1,9 +1,21 @@
 #!/usr/bin/env python3
 """Download or materialize RoboSnap checkpoint files into the release layout.
 
-This helper is intentionally configurable. The modified SAM3D checkpoint bundle
-may live in a project-specific repository, so it is downloaded only when a repo
-is explicitly provided.
+This helper supports:
+1. Downloading checkpoints from configured Hugging Face repositories.
+2. Preparing the expected local checkpoint layout from existing local weights.
+
+The default checkpoint paths are:
+
+    SAM3_CKPT=${CHECKPOINT_DIR}/sam3/sam3.pt
+    SAM3D_CONFIG=${CHECKPOINT_DIR}/sam-3d-objects/pipeline.yaml
+    ARTICULATE_CKPT=${CHECKPOINT_DIR}/articulate/articulate.safetensors
+    SONATA_CACHE_DIR=${CHECKPOINT_DIR}/sonata
+    HF_HOME=${CHECKPOINT_DIR}/hf_cache
+    TORCH_HOME=${CHECKPOINT_DIR}/torch_cache
+
+For existing local checkpoints, use:
+    scripts/gui/bash/copy_checkpoints_from_local.sh
 """
 
 from __future__ import annotations
