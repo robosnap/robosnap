@@ -22,7 +22,7 @@ FORCE_ENV=0
 
 usage() {
   cat <<EOF
-Usage: bash scripts/install_native_envs.sh [options]
+Usage: bash scripts/install.sh [options]
 
 Create the native three-env RoboSnap GUI setup and write configs/gui.env.
 

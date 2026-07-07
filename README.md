@@ -1,32 +1,35 @@
-# RoboSnap
+<h1 align="center">
+  <img src="assets/robosnap_logo.svg" alt="RoboSnap" height="38">
+</h1>
+
+<p align="center">One-Shot Real-to-Sim Scene Generation for Generalizable Robot Learning and Evaluation</p>
 
 <p align="center">
-  <b>One-Shot Real-to-Sim Scene Generation for Generalizable Robot Learning and Evaluation</b>
+  <a href="https://robosnap.github.io">Website</a> |
+  <a href="robosnap/paper.pdf">Paper</a>
 </p>
 
 <p align="center">
-  <a href="https://robosnap.github.io"><img src="https://img.shields.io/badge/Project-Page-4F6F52" alt="Project Page"></a>
-  <a href="robosnap/paper.pdf"><img src="https://img.shields.io/badge/Paper-PDF-B85C38" alt="Paper"></a>
-  <a href="#quick-start-docker"><img src="https://img.shields.io/badge/GUI-Quick_Start-345995" alt="GUI Quick Start"></a>
+  <img src="assets/teaser.png" alt="RoboSnap teaser" width="500">
 </p>
 
-RoboSnap reconstructs real-world scenes as simulation-ready assets from a short video or image sequence. This first public release is GUI-first: interactive segmentation, mask workspace management, mask-to-3D asset generation, scene composition, and articulated-object refinement.
 
-<p align="center">
-  <img src="assets/gui_preview.png" alt="RoboSnap GUI preview" width="760">
-</p>
+RoboSnap reconstructs real-world scenes into simulation-ready assets from short videos or single RGB images. Our GUI tool supports interactive segmentation, mask workspace management, mask-to-3D asset generation, scene composition, and articulated-object refinement. We also provide an automatic mode that transforms a single image into a layered simulation-ready scene with object assets and background context.
+
+More components from the paper, including evaluation code, real-robot deployment code, and the DROID-Sim dataset will be released soon in this month (26/07). Stay tuned!
 
 ## Release Plan
 
-- [x] GUI tool release
-- [ ] Auto pipeline, including sim-ready scene preparation
+- [x] GUI tool
+- [ ] Fully automatic layered scene generation pipeline
 - [ ] Real-robot deployment tutorial
 - [ ] Evaluation code
-- [ ] DROID-Sim dataset release
+- [ ] DROID-Sim dataset
 
-## Quick Start: Docker
 
-Docker is the recommended path for release testing because the GUI uses several heavy third-party stacks.
+## Environment
+
+### Docker
 
 Prerequisites on the host:
 
@@ -78,37 +81,54 @@ http://127.0.0.1:7897
 
 The default input video is `examples/video.mp4`. The default output workspace is `outputs/example/multi_mask`.
 
+### Conda
+
+
+Use this path when Docker is unavailable or when you want to debug the repo directly. The launcher supports three Python runtimes: GUI/video segmentation, mask-to-3D asset generation, and the Articulate Tool.
+
+Install the native conda environments with the helper script:
+
+```bash
+bash scripts/install_native_envs.sh
+```
+
+The script creates `robosnap-gui`, `robosnap-asset`, and `robosnap-articulate`, then writes `configs/gui.env` so `bash scripts/run_gui.sh` uses the new envs.
+
+After installation:
+
+```bash
+bash scripts/run_gui.sh
+```
+
+
+## GUI
+
+The pipeline of our GUI tool includes:
+
+1. Upload a video/image.
+2. Add text prompt and positive and negative prompt points.
+3. Confirm, preview and save masks.
+4. Generate GLB assets and compose a scene.
+5. (Optional) Articulated objects segmentation.
+
+
+<p align="center">
+  <img src="assets/gui_preview.png" alt="RoboSnap GUI preview" width="500">
+</p>
+
+The GUI provides the recommended workflow for mask refinement and asset generation. The mask-to-assets stage can also be executed from an existing mask workspace using:
+`scripts/gui/bash/run_mask_to_assets.sh`.
+
+### Online Demo
+
+We provide an online Gradio demo to showcase the capabilities of the RoboSnap GUI tool.
+You can access the demo [here](YOUR_GRADIO_LINK).
+
+
+
 ## Checkpoints
 
 Model weights are not committed. `checkpoints/` is the default local mount point and is git-ignored except for `.gitkeep`.
-
-Expected local layout:
-
-```text
-checkpoints/
-  sam3/
-    sam3.pt
-  sam-3d-objects/
-    pipeline.yaml
-    ... files referenced by pipeline.yaml ...
-  articulate/
-    articulate.safetensors
-  sonata/
-    sonata.pth
-  hf_cache/
-  torch_cache/
-```
-
-If you already have local weights, materialize them into this layout:
-
-```bash
-LOCAL_SAM3_CKPT=/path/to/sam3.pt \
-LOCAL_SAM3D_CHECKPOINT_DIR=/path/to/sam3d/checkpoints \
-LOCAL_ARTICULATE_CKPT=/path/to/p3sam.safetensors \
-LOCAL_SONATA_CKPT=/path/to/sonata.pth \
-MATERIALIZE_MODE=symlink \
-bash scripts/gui/bash/copy_checkpoints_from_local.sh
-```
 
 To preview or run Hugging Face downloads, use the checkpoint helper. Private or unreleased checkpoint repos must be passed explicitly:
 
@@ -117,79 +137,20 @@ python3 scripts/gui/python/download_checkpoints.py --dry-run --skip-optional
 python3 scripts/gui/python/download_checkpoints.py --sam3d-repo <your-sam3d-checkpoint-repo>
 ```
 
-You can also mount an external checkpoint directory into Docker:
-
-```bash
-docker run --gpus all --rm -it \
-  -p 7897:7897 \
-  -v /path/to/checkpoints:/workspace/robosnap/checkpoints \
-  -v "$(pwd)/outputs:/workspace/robosnap/outputs" \
-  robosnap-gui:local
-```
-
 ## Configuration
 
-RoboSnap uses one path prefix: `ROBOSNAP_ROOT`. In Docker it is `/workspace/robosnap`; in a native clone it defaults to the cloned repo root.
+RoboSnap can be configured through `configs/gui.env`.
 
-`configs/gui.env` is optional. Create it only when you need to override defaults:
+Create a local configuration file if you need to override default paths:
 
 ```bash
 cp configs/gui.env.example configs/gui.env
-$EDITOR configs/gui.env
 ```
 
-Common overrides:
 
-```bash
-ROBOSNAP_ROOT=/path/to/robosnap
-CHECKPOINT_DIR=${ROBOSNAP_ROOT}/checkpoints
-VIDEO=${ROBOSNAP_ROOT}/examples/video.mp4
-OUT_DIR=${ROBOSNAP_ROOT}/outputs/example/multi_mask
-PORT=7897
-MAX_FRAMES=20
-```
+## Folder Structure
 
-`VIDEO`, `OUT_DIR`, and `CHECKPOINT_DIR` may be absolute paths. Relative paths are resolved under `ROBOSNAP_ROOT`.
-
-## Native Install
-
-Use this path when Docker is unavailable or when you want to debug the repo directly. The launcher supports three Python runtimes: GUI/video segmentation, mask-to-3D asset generation, and the Articulate Tool.
-
-Install the native conda environments with the helper script:
-
-```bash
-bash scripts/install_native_envs.sh --dry-run
-bash scripts/install_native_envs.sh -y
-```
-
-The script creates `robosnap-gui`, `robosnap-asset`, and `robosnap-articulate`, then writes `configs/gui.env` so `bash scripts/run_gui.sh` uses the new envs. Useful options:
-
-```bash
-bash scripts/install_native_envs.sh --help
-bash scripts/install_native_envs.sh -y --skip-asset --skip-articulate
-bash scripts/install_native_envs.sh -y --force-env
-```
-
-After installation:
-
-```bash
-bash scripts/run_gui.sh
-```
-
-## GUI Workflow
-
-1. Load the configured video or upload a video/image in the GUI.
-2. Add positive and negative prompt points.
-3. Confirm and preview the propagated object mask.
-4. Save masks for each object.
-5. Generate GLB assets from the saved mask workspace.
-6. Compose generated assets into a scene preview.
-7. Select articulated objects and launch the Articulate Tool on child ports.
-8. Save joint JSON/USD files and final scene artifacts.
-
-## Outputs
-
-The GUI writes a workspace centered on `multi_mask/` and `single_mask/`:
+The GUI writes a workspace including `multi_mask/` and `single_mask/`:
 
 ```text
 outputs/example/
@@ -210,56 +171,6 @@ outputs/example/
     0.glb
     scene_composed.glb
 ```
-
-Key files:
-
-- `all_mask/`: propagated masks for the object.
-- `top*_mask/`: selected masks used for 3D generation.
-- `{object}.glb`: generated object asset.
-- `{object}_joints.json`: GUI-authored joint metadata.
-- `{object}_joints.usd`: USD joint export when enabled.
-- `single_mask/scene_composed.glb`: composed scene preview.
-
-## Remote Access
-
-`scripts/run_gui.sh` starts Gradio on the machine where it runs. It does not create SSH tunnels.
-
-For SSH local forwarding:
-
-```sshconfig
-Host robosnap-gui
-  HostName <remote-host>
-  User <user>
-  Port <ssh-port>
-  IdentityFile ~/.ssh/id_ed25519
-  LocalForward 7897 127.0.0.1:7897
-  LocalForward 8180 127.0.0.1:8180
-  ExitOnForwardFailure yes
-```
-
-Start the GUI on the remote machine and open `http://127.0.0.1:7897` locally. Forward additional Articulate Tool ports as needed, starting from `ARTICULATE_BASE_PORT`.
-
-For a temporary Gradio public link:
-
-```bash
-SHARE=1 PUBLIC_DEMO=1 bash scripts/run_gui.sh
-```
-
-Public demo mode narrows Gradio file access to the input file, output workspace, download directory, and explicit allowed roots. Uploaded files are stored in the configured Gradio temp directory; keep it under `outputs/` and keep `checkpoints/`, `data/`, `.git/`, and private SSH directories blocked.
-
-The public Gradio link only proxies the main GUI port. Articulate child ports need a separate tunnel, reverse proxy, or `ARTICULATE_PUBLIC_URL_TEMPLATE`.
-
-## Mask-to-Assets CLI
-
-The GUI can generate assets interactively. To rerun asset generation from an existing mask workspace:
-
-```bash
-bash scripts/gui/bash/run_mask_to_assets.sh --mode multi --input-path outputs/example/multi_mask
-bash scripts/gui/bash/run_mask_to_assets.sh --mode single --mask-dir outputs/example/single_mask
-DRY_RUN=1 bash scripts/gui/bash/run_mask_to_assets.sh --mode auto --input-path outputs/example/multi_mask
-```
-
-
 
 ## License
 

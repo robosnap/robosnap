@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+#
+# Materialize existing local checkpoints into the RoboSnap checkpoint layout.
+#
+# Example:
+#
+# LOCAL_SAM3_CKPT=/path/to/sam3.pt \
+# LOCAL_SAM3D_CHECKPOINT_DIR=/path/to/sam3d/checkpoints \
+# LOCAL_ARTICULATE_CKPT=/path/to/p3sam.safetensors \
+# LOCAL_SONATA_CKPT=/path/to/sonata.pth \
+# MATERIALIZE_MODE=symlink \
+# bash scripts/gui/bash/copy_checkpoints_from_local.sh
+#
+
 set -euo pipefail
 
 ROOT="${ROBOSNAP_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
