@@ -10,66 +10,37 @@
   <a href="#quick-start-gui"><img src="https://img.shields.io/badge/GUI-Quick_Start-345995" alt="GUI Quick Start"></a>
 </p>
 
-<p align="center">
-  <img src="assets/gui_preview.png" alt="RoboSnap GUI preview" width="900">
-</p>
 
 RoboSnap reconstructs real-world scenes as reusable simulation-ready environments. The first public release is GUI-first: interactive video/image segmentation, mask management, mask-to-3D asset generation, scene composition, and articulated-object refinement through a separate Articulate Tool page.
 
-## Release Roadmap
 
-- [x] GUI tool: segmentation, mask organization, asset generation, scene composition, and articulated-object annotation/refinement.
-- [ ] Auto pipeline, including sim-ready scene construction.
-- [ ] Real-robot deployment tutorial.
-- [ ] Evaluation code.
-- [ ] DROID-sim dataset release and download instructions.
-
-## Repository Map
-
-```text
-configs/gui.env.example               # editable environment template
-examples/video.mp4                    # default demo video
-scripts/run_gui.sh                    # main GUI launcher
-scripts/gui/bash/run_gui.sh           # detailed launcher
-scripts/gui/bash/copy_checkpoints_from_local.sh
-scripts/gui/bash/run_mask_to_assets.sh
-scripts/gui/python/download_checkpoints.py
-robosnap/gui/RoboSnapGUI/             # first-party GUI code
-third_party/sam3                      # adapted video segmentation snapshot
-third_party/sam-3d-objects            # adapted asset-generation snapshot
-third_party/Hunyuan3D-Part            # Articulate Tool / P3-SAM snapshot
-third_party/manifest.yaml             # third-party license/source notes
-```
-
-Core GUI files:
-
-```text
-robosnap/gui/RoboSnapGUI/inference_interactive_videoseg.py
-robosnap/gui/RoboSnapGUI/media_utils.py
-robosnap/gui/RoboSnapGUI/sam3d_bridge.py
-robosnap/gui/RoboSnapGUI/articulate_tool_manager.py
-robosnap/gui/RoboSnapGUI/articulate_manager.py
-robosnap/gui/RoboSnapGUI/viewer_html.py
-```
 
 ## Quick Start: GUI
 
-Prepare the repository and env file:
+Prepare the repository and start from the built-in defaults:
 
 ```bash
 git clone <repo-url> robosnap
 cd robosnap
+bash scripts/run_gui.sh
+```
+
+The launcher uses `ROBOSNAP_ROOT` as the single path prefix. It defaults to the repository root, so outputs default to `${ROBOSNAP_ROOT}/outputs/...`. Create `configs/gui.env` only when you need local overrides such as separate Python runtimes, checkpoint locations, input video, output path, or port:
+
+```bash
 cp configs/gui.env.example configs/gui.env
 $EDITOR configs/gui.env
 ```
 
-The example env points at the checked-in demo video and writes generated files under `outputs/`:
-
 ```bash
+# configs/gui.env
+# ROBOSNAP_ROOT=/path/to/robosnap  # optional; defaults to the cloned repo
 VIDEO=${ROBOSNAP_ROOT}/examples/video.mp4
 OUT_DIR=${ROBOSNAP_ROOT}/outputs/example/multi_mask
 PORT=7897
 ```
+
+Absolute paths work as written. Relative `VIDEO`, `OUT_DIR`, and `CHECKPOINT_DIR` values are resolved under `ROBOSNAP_ROOT`.
 
 Preview the checkpoint download plan:
 
@@ -77,17 +48,17 @@ Preview the checkpoint download plan:
 python3 scripts/gui/python/download_checkpoints.py --dry-run --skip-optional
 ```
 
-Start the GUI after configuring Python runtimes and checkpoints:
-
-```bash
-bash scripts/run_gui.sh
-```
-
 Open:
 
 ```text
 http://127.0.0.1:7897
 ```
+
+GUI Preview:
+
+<p align="center">
+  <img src="assets/gui_preview.png" alt="RoboSnap GUI preview" width="600">
+</p>
 
 ## Environment
 
@@ -195,6 +166,36 @@ If the weights already exist locally, materialize them into the expected layout 
 LOCAL_SAM3_CKPT=/path/to/sam3.pt LOCAL_SAM3D_CHECKPOINT_DIR=/path/to/sam-3d-objects/checkpoints LOCAL_ARTICULATE_CKPT=/path/to/articulate.safetensors LOCAL_SONATA_CKPT=/path/to/sonata.pth MATERIALIZE_MODE=symlink bash scripts/gui/bash/copy_checkpoints_from_local.sh
 ```
 
+## Temporary Public Demo on DSW
+
+For a short public demo through a Gradio share link, keep the demo isolated from local checkpoints and private datasets:
+
+```bash
+# configs/gui.env
+VIDEO=${ROBOSNAP_ROOT}/examples/video.mp4
+OUT_DIR=${ROBOSNAP_ROOT}/outputs/public_demo/multi_mask
+PORT=7897
+SHARE=1
+PUBLIC_DEMO=1
+GRADIO_ALLOWED_ROOTS=
+GRADIO_BLOCKED_ROOTS=/cpfs/user/zhangshujie/ikea:${ROBOSNAP_ROOT}/checkpoints:/cpfs/user/zhangshujie/.ssh
+GRADIO_MAX_FILE_SIZE=200mb
+GRADIO_DELETE_CACHE_FREQUENCY=3600
+GRADIO_DELETE_CACHE_AGE=21600
+```
+
+Then start the GUI:
+
+```bash
+bash scripts/run_gui.sh
+```
+
+The terminal prints a `gradio.live` URL when `SHARE=1`. The main segmentation GUI, mask saving, asset generation controls, and result zip download run through that URL. Click `Prepare Results Download` after saving masks to create a downloadable zip under `outputs/public_demo/downloads/`.
+
+`PUBLIC_DEMO=1` narrows Gradio file access to the input video, output workspace, download directory, and explicit `GRADIO_ALLOWED_ROOTS`. Do not add the repository root, checkpoint directory, private datasets, or SSH directories to `GRADIO_ALLOWED_ROOTS`.
+
+The Articulate Tool opens per-object child ports. A Gradio share link only proxies the main GUI port, so public Articulate access needs a DSW port proxy or reverse proxy configured through `ARTICULATE_PUBLIC_URL_TEMPLATE`.
+
 ## Remote GUI Access
 
 `scripts/run_gui.sh` starts Gradio on the remote machine; it does not create SSH tunnels. If the GUI runs remotely and the browser runs locally, keep a separate SSH session open with local forwards:
@@ -296,48 +297,14 @@ Before publishing the GUI release, check these on a configured machine with real
 
 Keep release-review artifacts out of source control: generated `outputs/`, terminal logs, screenshots, checkpoints, caches, GLBs, USD files, and local env files.
 
-## Release Scope
+## Release Roadmap
 
-The first public surface is the GUI path only:
+- [x] GUI tool: segmentation, mask organization, asset generation, scene composition, and articulated-object annotation/refinement.
+- [ ] Auto pipeline, including sim-ready scene construction.
+- [ ] Real-robot deployment tutorial.
+- [ ] Evaluation code.
+- [ ] DROID-sim dataset release and download instructions.
 
-```text
-README.md
-LICENSE
-NOTICE
-pyproject.toml
-configs/gui.env.example
-examples/video.mp4
-scripts/run_gui.sh
-scripts/gui/bash/
-scripts/gui/python/download_checkpoints.py
-robosnap/gui/RoboSnapGUI/
-third_party/sam3
-third_party/sam-3d-objects
-third_party/Hunyuan3D-Part
-third_party/README.md
-third_party/manifest.yaml
-```
-
-Local or generated state should stay out of the source release:
-
-```text
-configs/gui.env
-checkpoints/*, except checkpoints/.gitkeep
-outputs/*, except outputs/.gitkeep
-data/
-__pycache__/
-*.py[cod]
-*.log
-*.mp4, except examples/video.mp4
-*.glb
-*.ply
-*.usd
-*.usdz
-```
-
-`data/` is not part of the first GUI release; DROID-sim material belongs to a later milestone. Later milestones should be reviewed and documented separately before being presented as supported public APIs.
-
-`third_party/` currently points at adapted source snapshots. For a public release, these can either remain bundled snapshots or be replaced by pinned forks/submodules in separate repositories, as long as the paths expected by `configs/gui.env` and the launch scripts stay valid.
 
 ## License and Third-party Notes
 

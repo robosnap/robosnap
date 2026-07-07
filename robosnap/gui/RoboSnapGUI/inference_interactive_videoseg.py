@@ -29,6 +29,7 @@ import argparse
 import re
 import json
 import base64
+import zipfile
 import gradio as gr
 import numpy as np
 from pathlib import Path
@@ -102,6 +103,72 @@ def apply_runtime_config(args):
 
 # Global state for 3D generation progress
 _GEN_STATE = {"running": False, "logs": "", "done": False}
+
+
+def _unique_existing_paths(paths):
+    result = []
+    seen = set()
+    for path in paths:
+        if not path:
+            continue
+        resolved = Path(path).expanduser().resolve()
+        if not resolved.exists():
+            continue
+        path_str = str(resolved)
+        if path_str in seen:
+            continue
+        seen.add(path_str)
+        result.append(path_str)
+    return result
+
+
+def _parse_basic_auth(auth_value):
+    if not auth_value:
+        return None
+
+    auth_entries = []
+    for entry in auth_value.split(','):
+        entry = entry.strip()
+        if not entry:
+            continue
+        if ':' not in entry:
+            raise ValueError('GRADIO_AUTH entries must use username:password')
+        username, password = entry.split(':', 1)
+        if not username or not password:
+            raise ValueError('GRADIO_AUTH username and password cannot be empty')
+        auth_entries.append((username, password))
+
+    if not auth_entries:
+        return None
+    if len(auth_entries) == 1:
+        return auth_entries[0]
+    return auth_entries
+
+
+def _build_results_zip(source_dir: Path, download_dir: Path) -> Path:
+    source_dir = source_dir.expanduser().resolve()
+    download_dir = download_dir.expanduser().resolve()
+    ensure_dir(download_dir)
+
+    files = []
+    for file_path in sorted(source_dir.rglob('*')):
+        if not file_path.is_file():
+            continue
+        rel_path = file_path.relative_to(source_dir)
+        if any(part.startswith('.') for part in rel_path.parts):
+            continue
+        files.append((file_path, rel_path))
+
+    if not files:
+        raise FileNotFoundError(f'No result files found under {source_dir}')
+
+    zip_path = download_dir / f'{source_dir.name}_results.zip'
+    tmp_path = download_dir / f'.{source_dir.name}_results.tmp.zip'
+    with zipfile.ZipFile(tmp_path, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        for file_path, rel_path in files:
+            zf.write(file_path, rel_path.as_posix())
+    tmp_path.replace(zip_path)
+    return zip_path
 
 
 def generate_3d_meshes_for_all_objects(
@@ -211,10 +278,11 @@ def set_graceful_exit():
 # Main
 # =============================
 def main(args):
-    out_dir = Path(args.out_dir)
+    out_dir = Path(args.out_dir).expanduser().resolve()
     ensure_dir(out_dir)
+    download_dir = out_dir.parent / "downloads"
 
-    input_path = Path(args.video)
+    input_path = Path(args.video).expanduser().resolve()
     frames, video_fps, is_single_image = read_video(input_path)
     frame0 = frames[0]
     H, W = frame0.shape[:2]
@@ -236,7 +304,7 @@ def main(args):
 
     session_info = predictor.handle_request({
         "type": "start_session",
-        "resource_path": str(args.video),
+        "resource_path": str(input_path),
     })
     session_id = session_info["session_id"]
 
@@ -255,7 +323,11 @@ def main(args):
     # -----------------------------
     # UI
     # -----------------------------
-    with gr.Blocks(title="Interactive Segmentation") as demo:
+    delete_cache = None
+    if args.delete_cache_frequency > 0 and args.delete_cache_age > 0:
+        delete_cache = (args.delete_cache_frequency, args.delete_cache_age)
+
+    with gr.Blocks(title="Interactive Segmentation", delete_cache=delete_cache) as demo:
         # Dynamic title based on mode
         if is_single_image:
             gr.Markdown("## Interactive Image Segmentation (Single Image Mode)")
@@ -293,6 +365,14 @@ def main(args):
             btn_end = gr.Button("🛑 End", variant="primary")
 
         status = gr.Markdown("🟢 Ready")
+
+        with gr.Row():
+            btn_download_results = gr.Button("⬇️ Prepare Results Download")
+            results_download = gr.File(
+                label="Results Zip",
+                interactive=False,
+                visible=False,
+            )
 
         # -----------------------------
         # Callbacks
@@ -635,6 +715,18 @@ def main(args):
             # Instead of exiting, return message to transition to articulate mode
             return "🎯 Segmentation complete! Now you can preview the 3D assets generated below and get ready to choose the ones you want to segment as articulated objects."
 
+        def prepare_results_download():
+            try:
+                zip_path = _build_results_zip(out_dir, download_dir)
+            except FileNotFoundError:
+                return gr.update(value=None, visible=False), "❌ No saved results yet. Save at least one mask first."
+            except Exception as exc:
+                return gr.update(value=None, visible=False), f"❌ Failed to prepare download: {exc}"
+            return (
+                gr.update(value=str(zip_path), visible=True),
+                f"✅ Results ready for download: `{zip_path}`",
+            )
+
         def on_enter_articulate_mode():
             """
             Transition to articulate mode - this will be handled by the UI state.
@@ -648,6 +740,7 @@ def main(args):
         btn_confirm.click(confirm_prompt, inputs=[prompt], outputs=[img, status])
         img.select(on_click, inputs=[mode], outputs=[img, status])
         btn_reset.click(reset_points, outputs=[img, status])
+        btn_download_results.click(prepare_results_download, outputs=[results_download, status])
 
         # >>> NEW: Bind to correct preview component based on mode
         if is_single_image:
@@ -1384,11 +1477,38 @@ def main(args):
         # ============================================================
         # Launch Demo
         # ============================================================
-        allowed_paths = []
-        for path in [ROBOSNAP_ROOT, out_dir, out_dir.parent, out_dir.parent / "single_mask", *EXTRA_ALLOWED_ROOTS]:
-            path_str = str(path)
-            if path_str not in allowed_paths:
-                allowed_paths.append(path_str)
+        if args.public_demo:
+            allowed_candidates = [
+                input_path,
+                input_path.parent,
+                out_dir,
+                out_dir.parent,
+                download_dir,
+                *EXTRA_ALLOWED_ROOTS,
+            ]
+            blocked_candidates = [
+                CHECKPOINT_DIR,
+                ROBOSNAP_ROOT / "checkpoints",
+                ROBOSNAP_ROOT / ".git",
+                ROBOSNAP_ROOT / "data",
+                Path.home() / ".ssh",
+                Path("/cpfs/user/zhangshujie/ikea"),
+                *args.blocked_root,
+            ]
+        else:
+            allowed_candidates = [
+                ROBOSNAP_ROOT,
+                out_dir,
+                out_dir.parent,
+                out_dir.parent / "single_mask",
+                download_dir,
+                *EXTRA_ALLOWED_ROOTS,
+            ]
+            blocked_candidates = [*args.blocked_root]
+
+        allowed_paths = _unique_existing_paths(allowed_candidates)
+        blocked_paths = _unique_existing_paths(blocked_candidates)
+        auth = _parse_basic_auth(args.auth)
 
         demo.launch(
             server_name="0.0.0.0",
@@ -1397,6 +1517,10 @@ def main(args):
             debug=args.debug,
             show_error=True,
             allowed_paths=allowed_paths,
+            blocked_paths=blocked_paths,
+            max_file_size=args.max_file_size,
+            auth=auth,
+            enable_monitoring=False if args.public_demo else None,
             root_path=None,  # Disable root path to allow iframe
         )
 
@@ -1409,6 +1533,11 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "7897")))
     parser.add_argument("--share", action="store_true")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--public-demo", action="store_true")
+    parser.add_argument("--max-file-size", default=os.environ.get("GRADIO_MAX_FILE_SIZE"))
+    parser.add_argument("--auth", default=os.environ.get("GRADIO_AUTH", ""))
+    parser.add_argument("--delete-cache-frequency", type=int, default=int(os.environ.get("GRADIO_DELETE_CACHE_FREQUENCY", "0")))
+    parser.add_argument("--delete-cache-age", type=int, default=int(os.environ.get("GRADIO_DELETE_CACHE_AGE", "0")))
     parser.add_argument("--max_frames", type=int, default=20)
     parser.add_argument("--asset-python", default=PY_ASSET)
     parser.add_argument("--asset-dir", dest="asset_dir", default=str(SAM3D_DIR))
@@ -1421,6 +1550,7 @@ if __name__ == "__main__":
     parser.add_argument("--articulate-base-port", dest="articulate_base_port", type=int, default=ARTICULATE_BASE_PORT)
     parser.add_argument("--articulate-public-url-template", dest="articulate_public_url_template", default=os.environ.get("ARTICULATE_PUBLIC_URL_TEMPLATE", os.environ.get("P3SAM_PUBLIC_URL_TEMPLATE")))
     parser.add_argument("--allowed-root", action="append", default=[])
+    parser.add_argument("--blocked-root", action="append", default=[])
     args = parser.parse_args()
     apply_runtime_config(args)
     main(args)

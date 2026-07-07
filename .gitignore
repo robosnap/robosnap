@@ -48,3 +48,4 @@ third_party/Grounded-SAM-2/
 # Small checked-in GUI demo input
 !examples/video.mp4
 
+.gradio/
