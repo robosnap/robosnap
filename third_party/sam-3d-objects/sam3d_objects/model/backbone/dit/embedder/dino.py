@@ -29,14 +29,29 @@ class Dino(torch.nn.Module):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             
-            # Prefer an explicitly configured local torch hub cache to avoid network access.
+            # Prefer a local torch hub cache to avoid network access at runtime.
+            local_repo = os.environ.get("ROBOSNAP_DINOV2_REPO")
             hub_cache = os.environ.get("ROBOSNAP_DINOV2_TORCH_HOME") or os.environ.get("TORCH_HOME")
-            if source == "github" and repo_or_dir == "facebookresearch/dinov2" and hub_cache:
-                local_repo = os.path.join(hub_cache, "facebookresearch_dinov2_main")
+            if (
+                source == "github"
+                and repo_or_dir == "facebookresearch/dinov2"
+                and not local_repo
+                and hub_cache
+            ):
+                for candidate in (
+                    os.path.join(hub_cache, "facebookresearch_dinov2_main"),
+                    os.path.join(hub_cache, "hub", "facebookresearch_dinov2_main"),
+                ):
+                    if os.path.exists(os.path.join(candidate, "hubconf.py")):
+                        local_repo = candidate
+                        break
+            if source == "github" and repo_or_dir == "facebookresearch/dinov2" and local_repo:
                 if os.path.exists(os.path.join(local_repo, "hubconf.py")):
                     repo_or_dir = local_repo
                     source = "local"
-                    torch.hub.set_dir(hub_cache)
+                    torch.hub.set_dir(os.path.dirname(local_repo))
+                else:
+                    logger.warning(f"ROBOSNAP_DINOV2_REPO does not contain hubconf.py: {local_repo}")
 
             logger.info(f"Loading DINO model: {dino_model} from {repo_or_dir} (source: {source})")
             if backbone_kwargs:

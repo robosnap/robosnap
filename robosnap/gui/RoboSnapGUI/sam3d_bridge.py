@@ -31,6 +31,7 @@ def generate_3d_meshes_for_all_objects(
     py_asset: str = "python",
     sam3d_dir: Path | str | None = None,
     default_config: str | None = None,
+    source_video: Path | str | None = None,
     _subprocess_env_for_python=_default_subprocess_env_for_python,
 ):
     """
@@ -47,6 +48,7 @@ def generate_3d_meshes_for_all_objects(
         config_path: Path to the 3D generation config yaml
         max_frames: Number of top frames to use for 3D reconstruction
         progress_callback: Optional callback function(step, total, message) for progress updates
+        source_video: Original input video/image used to extract single_mask/image.png when needed
     
     Returns:
         dict with keys: success, message, generated_objects, logs
@@ -66,7 +68,42 @@ def generate_3d_meshes_for_all_objects(
         print(msg)
         logs.append(msg)
         if progress_callback:
-            progress_callback(len(logs), 20, msg)
+            progress_callback(0, 0, msg)
+
+    def prepare_reference_image(single_mask_dir: Path):
+        target_image_path = single_mask_dir / "image.png"
+        if target_image_path.exists():
+            return
+
+        candidates = [out_dir / "video.mp4"]
+        if source_video is not None:
+            candidates.append(Path(source_video).expanduser())
+
+        seen = set()
+        for candidate in candidates:
+            candidate = Path(candidate)
+            key = str(candidate)
+            if key in seen:
+                continue
+            seen.add(key)
+            if not candidate.exists():
+                continue
+
+            single_mask_dir.mkdir(parents=True, exist_ok=True)
+            log(f"[3D Gen] Extracting first frame from {candidate} to {target_image_path}")
+            proc = subprocess.run(
+                ["ffmpeg", "-y", "-i", str(candidate), "-vframes", "1", "-q:v", "2", str(target_image_path)],
+                capture_output=True,
+                text=True,
+            )
+            if proc.returncode == 0 and target_image_path.exists():
+                return
+
+            detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+            if detail:
+                log(f"[3D Gen] ffmpeg warning: {detail[-1]}")
+
+        log(f"[3D Gen] Warning: could not prepare reference image at {target_image_path}")
     
     # Step 1: Check if all mask objects already have meshes in multi_mask/object_name/.
     # A partial set of meshes is not enough to skip run_inference.py.
@@ -101,17 +138,7 @@ def generate_3d_meshes_for_all_objects(
         scene_composed_glb = single_mask_dir / "scene_composed.glb"
 
         if not scene_composed_glb.exists():
-            # Extract first frame from video.mp4 in multi_mask folder for single_mask
-            video_path = out_dir / "video.mp4"
-            target_image_path = single_mask_dir / "image.png"
-            if video_path.exists() and not target_image_path.exists():
-                single_mask_dir.mkdir(parents=True, exist_ok=True)
-                log(f"[3D Gen] Extracting first frame from {video_path} to {target_image_path}")
-                subprocess.run(
-                    ["ffmpeg", "-y", "-i", str(video_path), "-vframes", "1", "-q:v", "2", str(target_image_path)],
-                    capture_output=True,
-                    text=True
-                )
+            prepare_reference_image(single_mask_dir)
 
             # 把 multi_mask 各 object 子目录的 GLB 和 top*_mask 第一帧补齐到 single_mask/
             import shutil as _shutil
@@ -218,16 +245,7 @@ def generate_3d_meshes_for_all_objects(
 
     # Step 3: Extract first frame + call image2glb.py directly for scale
     single_mask_dir = out_dir.parent / "single_mask"
-    video_path = out_dir / "video.mp4"
-    if video_path.exists():
-        single_mask_dir.mkdir(parents=True, exist_ok=True)
-        target_image_path = single_mask_dir / "image.png"
-        log(f"[3D Gen] Extracting first frame from {video_path} to {target_image_path}")
-        subprocess.run(
-            ["ffmpeg", "-y", "-i", str(video_path), "-vframes", "1", "-q:v", "2", str(target_image_path)],
-            capture_output=True,
-            text=True
-        )
+    prepare_reference_image(single_mask_dir)
 
     # 把 multi_mask 各 object 子目录的第一帧 mask 和 .glb 复制到 single_mask/
     # 命名为 0.png/0.glb, 1.png/1.glb, ... 供 image2glb.py --scale_only 使用

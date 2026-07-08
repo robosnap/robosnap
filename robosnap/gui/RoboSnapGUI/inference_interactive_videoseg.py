@@ -27,6 +27,9 @@ from media_utils import (
 _clear_socks_proxy_env()
 import argparse
 import re
+import shutil
+from datetime import datetime, timezone
+import re
 import json
 import base64
 import zipfile
@@ -71,6 +74,7 @@ EXTRA_ALLOWED_ROOTS = [
     for p in os.environ.get("GRADIO_ALLOWED_ROOTS", "").split(os.pathsep)
     if p
 ]
+CURRENT_INPUT_VIDEO = None
 
 
 
@@ -185,6 +189,7 @@ def generate_3d_meshes_for_all_objects(
         py_asset=PY_ASSET,
         sam3d_dir=SAM3D_DIR,
         default_config=SAM3D_CONFIG,
+        source_video=CURRENT_INPUT_VIDEO,
         _subprocess_env_for_python=_subprocess_env_for_python,
     )
 
@@ -283,6 +288,8 @@ def main(args):
     download_dir = out_dir.parent / "downloads"
 
     input_path = Path(args.video).expanduser().resolve()
+    global CURRENT_INPUT_VIDEO
+    CURRENT_INPUT_VIDEO = input_path
     frames, video_fps, is_single_image = read_video(input_path)
     frame0 = frames[0]
     H, W = frame0.shape[:2]
@@ -327,12 +334,26 @@ def main(args):
     if args.delete_cache_frequency > 0 and args.delete_cache_age > 0:
         delete_cache = (args.delete_cache_frequency, args.delete_cache_age)
 
+    public_demo_root = out_dir.parent
+
     with gr.Blocks(title="Interactive Segmentation", delete_cache=delete_cache) as demo:
         # Dynamic title based on mode
         if is_single_image:
             gr.Markdown("## Interactive Image Segmentation (Single Image Mode)")
         else:
             gr.Markdown("## Interactive Video Segmentation (Video Mode)")
+
+        if args.public_demo:
+            with gr.Row():
+                upload_video = gr.File(
+                    label="Upload Video",
+                    file_types=["video"],
+                    type="filepath",
+                )
+                btn_load_upload = gr.Button("Load Uploaded Video")
+        else:
+            upload_video = None
+            btn_load_upload = None
 
         with gr.Row():
             # Use display=True to show full resolution without client-side scaling
@@ -406,6 +427,70 @@ def main(args):
                 return vis, f"✅ Prompt set: `{current_prompt}`. Please click to select the interactive area."
             else:
                 return vis, f"✅ Prompt set: `{current_prompt}`. Now click to refine."
+
+        def load_uploaded_video(uploaded_path):
+            nonlocal input_path, frames, video_fps, is_single_image, frame0, H, W, session_id
+            nonlocal current_prompt, current_obj_id, saved_objects, last_preview_video
+            nonlocal out_dir, download_dir
+            global CURRENT_INPUT_VIDEO
+
+            if not uploaded_path:
+                return gr.update(), gr.update(), "❌ No uploaded video selected."
+
+            uploaded_path = Path(uploaded_path).expanduser().resolve()
+            if not uploaded_path.exists():
+                return gr.update(), gr.update(), f"❌ Uploaded file does not exist: `{uploaded_path}`"
+
+            safe_stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", uploaded_path.stem).strip("._") or "upload"
+            session_name = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{safe_stem}"
+            upload_dir = public_demo_root / "uploads"
+            session_root = public_demo_root / "sessions" / session_name
+            ensure_dir(upload_dir)
+            ensure_dir(session_root)
+
+            suffix = uploaded_path.suffix or ".mp4"
+            stored_video = upload_dir / f"{session_name}{suffix}"
+            shutil.copy2(uploaded_path, stored_video)
+
+            try:
+                new_frames, new_video_fps, new_is_single_image = read_video(stored_video)
+            except Exception as exc:
+                return gr.update(), gr.update(), f"❌ Failed to read uploaded video: {exc}"
+
+            if len(new_frames) <= 1:
+                return gr.update(), gr.update(), "❌ Please upload a video file with multiple frames."
+
+            input_path = stored_video
+            CURRENT_INPUT_VIDEO = input_path
+            frames = new_frames
+            video_fps = new_video_fps
+            is_single_image = new_is_single_image
+            frame0 = frames[0]
+            H, W = frame0.shape[:2]
+
+            out_dir = session_root / "multi_mask"
+            download_dir = session_root / "downloads"
+            ensure_dir(out_dir)
+            ensure_dir(download_dir)
+
+            session_info_new = predictor.handle_request({
+                "type": "start_session",
+                "resource_path": str(input_path),
+            })
+            session_id = session_info_new["session_id"]
+
+            current_prompt = None
+            current_obj_id = 0
+            points_rel.clear()
+            point_labels.clear()
+            saved_objects.clear()
+            last_preview_video = None
+
+            return (
+                frame0,
+                None,
+                f"✅ Loaded uploaded video `{stored_video.name}`. Outputs will be saved under `{out_dir}`.",
+            )
 
         def on_click(evt: gr.SelectData, point_mode: str):
             nonlocal points_rel, point_labels, current_prompt, current_obj_id
@@ -741,6 +826,8 @@ def main(args):
         img.select(on_click, inputs=[mode], outputs=[img, status])
         btn_reset.click(reset_points, outputs=[img, status])
         btn_download_results.click(prepare_results_download, outputs=[results_download, status])
+        if args.public_demo:
+            btn_load_upload.click(load_uploaded_video, inputs=[upload_video], outputs=[img, preview_img, status])
 
         # >>> NEW: Bind to correct preview component based on mode
         if is_single_image:
@@ -1454,7 +1541,7 @@ def main(args):
             progress = update_progress_ui(_GEN_STATE["logs"], _GEN_STATE["current"], _GEN_STATE["total"])[0]
             if _GEN_STATE["done"]:
                 return progress, log_str, "✅ Generation Complete! Click 'Check Progress' to continue."
-            return progress, log_str, f"🔄 Generating... {_GEN_STATE['current']}/{_GEN_STATE['total']}"
+            return progress, log_str, "🔄 Generating..."
 
         gen_timer = gr.Timer(value=3, active=False)
         gen_timer.tick(_auto_poll, outputs=[progress_html, generation_logs, generation_status])

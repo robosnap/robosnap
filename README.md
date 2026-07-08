@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="assets/robosnap_logo.svg" alt="RoboSnap" height="38">
+  <img src="assets/robosnap_logo.svg" alt="RoboSnap" height="50">
 </h1>
 
 <p align="center">One-Shot Real-to-Sim Scene Generation for Generalizable Robot Learning and Evaluation</p>
@@ -10,13 +10,14 @@
 </p>
 
 <p align="center">
-  <img src="assets/teaser.png" alt="RoboSnap teaser" width="500">
+  <img src="assets/teaser.png" alt="RoboSnap teaser" width="600">
 </p>
 
 
-RoboSnap reconstructs real-world scenes into simulation-ready assets from short videos or single RGB images. Our GUI tool supports interactive segmentation, mask workspace management, mask-to-3D asset generation, scene composition, and articulated-object refinement. We also provide an automatic mode that transforms a single image into a layered simulation-ready scene with object assets and background context.
+RoboSnap reconstructs real-world scenes into simulation-ready assets from single RGB images, and the full implementation also supports short videos as input. Our **GUI tool** supports interactive segmentation, mask workspace management, mask-to-3D asset generation, scene composition, and articulated-object refinement. We also provide **a fully automatic pipeline** that transforms a single image into a layered simulation-ready scene with object assets and background context within around **20 minutes**.
 
-More components from the paper, including evaluation code, real-robot deployment code, and the DROID-Sim dataset will be released soon in this month (26/07). Stay tuned!
+More components from the paper, including **evaluation code**, **real-robot deployment code**, and the **DROID-Sim** dataset will be released soon **this month (07/26)**. Stay tuned!
+
 
 ## Release Plan
 
@@ -89,7 +90,7 @@ Use this path when Docker is unavailable or when you want to debug the repo dire
 Install the native conda environments with the helper script:
 
 ```bash
-bash scripts/install_native_envs.sh
+bash scripts/install.sh
 ```
 
 The script creates `robosnap-gui`, `robosnap-asset`, and `robosnap-articulate`, then writes `configs/gui.env` so `bash scripts/run_gui.sh` uses the new envs.
@@ -119,10 +120,12 @@ The pipeline of our GUI tool includes:
 The GUI provides the recommended workflow for mask refinement and asset generation. The mask-to-assets stage can also be executed from an existing mask workspace using:
 `scripts/gui/bash/run_mask_to_assets.sh`.
 
+> **Note:** For multi-view asset generation using the top-20 mask candidates, we recommend a GPU environment with at least **48GB of VRAM** to ensure smooth execution.
+
 ### Online Demo
 
 We provide an online Gradio demo to showcase the capabilities of the RoboSnap GUI tool.
-You can access the demo [here](YOUR_GRADIO_LINK).
+You can access the demo [here](https://0a1b81dfcc87953981.gradio.live).
 
 
 
