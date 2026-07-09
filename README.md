@@ -125,7 +125,7 @@ The GUI provides the recommended workflow for mask refinement and asset generati
 ### Online Demo
 
 We provide an online Gradio demo to showcase the capabilities of the RoboSnap GUI tool.
-You can access the demo [here](https://0a1b81dfcc87953981.gradio.live).
+You can access the demo [here](https://0a1b81dfcc87953981.gradio.live). Please note that this hosted demo is intended as a **lightweight preview** of the full GUI tool and may experience delays or temporary unavailability under heavy traffic. For the most stable and complete experience, we recommend cloning our repository and running the GUI locally.
 
 
 
