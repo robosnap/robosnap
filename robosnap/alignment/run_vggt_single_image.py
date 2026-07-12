@@ -21,7 +21,7 @@ VGGT_DIR = Path(os.environ.get("VGGT_DIR", ROBOSNAP_ROOT / "third_party" / "vggt
 if str(VGGT_DIR) not in sys.path:
     sys.path.insert(0, str(VGGT_DIR))
 
-from demo_single_image import load_model, save_depth_preview, save_pcd, save_ply, select_points
+from robosnap.alignment.vggt_io import load_model, save_depth_preview, save_pcd, save_ply, select_points
 from vggt.utils.geometry import unproject_depth_map_to_point_map
 from vggt.utils.load_fn import load_and_preprocess_images
 from vggt.utils.pose_enc import pose_encoding_to_extri_intri

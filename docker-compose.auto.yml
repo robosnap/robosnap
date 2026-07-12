@@ -1,0 +1,31 @@
+name: robosnap-auto
+
+services:
+  pipeline:
+    image: robosnap-auto:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.auto
+      args:
+        MAX_JOBS: "${MAX_JOBS:-4}"
+    ipc: host
+    shm_size: 32gb
+    environment:
+      CHECKPOINT_DIR: /workspace/robosnap/checkpoints
+      HF_HOME: /workspace/robosnap/checkpoints/hf_cache
+      TORCH_HOME: /workspace/robosnap/checkpoints/torch_cache
+      HF_TOKEN: "${HF_TOKEN:-}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      GOOGLE_API_KEY: "${GOOGLE_API_KEY:-}"
+    volumes:
+      - ./checkpoints:/workspace/robosnap/checkpoints
+      - ./outputs:/workspace/robosnap/outputs
+      - ./examples:/workspace/robosnap/examples:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: ["--help"]

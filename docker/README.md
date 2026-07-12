@@ -27,3 +27,13 @@ PY_ARTICULATE=/opt/conda/envs/robosnap-articulate/bin/python
 ```
 
 Weights are not baked into the image. Put them under `checkpoints/` on the host or mount an external checkpoint directory into `/workspace/robosnap/checkpoints`.
+
+## Automatic pipeline
+
+Build the separate automatic-pipeline image:
+
+~~~bash
+docker build -f docker/Dockerfile.auto -t robosnap-auto:local .
+~~~
+
+The image contains the four Conda runtimes but no model weights. See docs/automatic_pipeline_setup.md for model download and run commands.

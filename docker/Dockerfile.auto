@@ -1,0 +1,67 @@
+FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04 AS auto-base
+
+FROM auto-base AS auto-runtime
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG MAX_JOBS=4
+
+ENV ROBOSNAP_ROOT=/workspace/robosnap \
+    CHECKPOINT_DIR=/workspace/robosnap/checkpoints \
+    HF_HOME=/workspace/robosnap/checkpoints/hf_cache \
+    TORCH_HOME=/workspace/robosnap/checkpoints/torch_cache \
+    CONDA_EXE=/opt/conda/bin/conda \
+    MAX_JOBS=${MAX_JOBS} \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYOPENGL_PLATFORM=egl \
+    PY_AUTO=/opt/conda/envs/robosnap-asset/bin/python \
+    PY_SAM3=/opt/conda/envs/robosnap-sam3/bin/python \
+    PY_ASSET=/opt/conda/envs/robosnap-asset/bin/python \
+    PY_VGGT=/opt/conda/envs/robosnap-asset/bin/python \
+    PY_ALIGN=/opt/conda/envs/robosnap-asset/bin/python \
+    PY_LYRA=/opt/conda/envs/robosnap-lyra/bin/python \
+    PY_SIM_READY=/opt/conda/envs/robosnap-sim/bin/python
+
+SHELL ["/bin/bash", "-lc"]
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    curl \
+    ffmpeg \
+    git \
+    libegl1 \
+    libgl1 \
+    libglib2.0-0 \
+    libgomp1 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    ninja-build \
+    patch \
+    wget \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh" -o /tmp/miniforge.sh \
+ && bash /tmp/miniforge.sh -b -p /opt/conda \
+ && rm /tmp/miniforge.sh \
+ && /opt/conda/bin/conda config --system --set channel_priority strict \
+ && /opt/conda/bin/conda clean -afy
+
+ENV PATH=/opt/conda/bin:$PATH
+
+WORKDIR /workspace/robosnap
+COPY . /workspace/robosnap
+
+RUN bash scripts/install_auto_pipeline.sh -y --force-env \
+ && /opt/conda/bin/conda clean -afy \
+ && rm -rf /root/.cache/pip
+
+RUN mkdir -p checkpoints outputs \
+ && chmod +x scripts/run_auto_pipeline.sh scripts/install_auto_pipeline.sh \
+    scripts/setup_auto_sources.sh scripts/download_auto_checkpoints.py \
+    docker/auto-entrypoint.sh
+
+ENTRYPOINT ["/workspace/robosnap/docker/auto-entrypoint.sh"]
+CMD ["--help"]
