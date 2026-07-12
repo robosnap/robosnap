@@ -47,6 +47,10 @@ git clone https://github.com/robosnap/robosnap.git
 cd robosnap
 ```
 
+The GUI and fully automatic pipeline can be installed independently.
+
+#### GUI only
+
 Build the image:
 
 ```bash
@@ -82,12 +86,29 @@ http://127.0.0.1:7897
 
 The default input video is `examples/video.mp4`. The default output workspace is `outputs/example/multi_mask`.
 
+#### Full pipeline only
+
+```bash
+docker build -f docker/Dockerfile.auto -t robosnap-auto:local .
+
+docker run --gpus all --rm -it \
+  --ipc=host --shm-size=32g \
+  -v "$(pwd)/checkpoints:/workspace/robosnap/checkpoints" \
+  -v "$(pwd)/outputs:/workspace/robosnap/outputs" \
+  robosnap-auto:local --help
+```
+
+The image contains the four full-pipeline environments. Model weights remain outside the image under `checkpoints/`.
+
 ### Conda
 
+The GUI and fully automatic pipeline can be installed independently.
 
-Use this path when Docker is unavailable or when you want to debug the repo directly. The launcher supports three Python runtimes: GUI/video segmentation, mask-to-3D asset generation, and the Articulate Tool.
+#### GUI only
 
-Install the native conda environments with the helper script:
+The GUI uses three Python runtimes: video segmentation, mask-to-3D asset generation, and the Articulate Tool.
+
+Install them with:
 
 ```bash
 bash scripts/install.sh
@@ -101,18 +122,28 @@ After installation:
 bash scripts/run_gui.sh
 ```
 
+#### Full pipeline only
+
+Install the full-pipeline environments with:
+
+```bash
+bash scripts/install_auto_pipeline.sh -y
+```
+
+This creates `robosnap-sam3`, `robosnap-asset`, `robosnap-lyra`, and `robosnap-sim`, then writes `configs/auto_pipeline.env`. The GUI environments are not required.
 
 ## Automatic Pipeline
 
+After installing the full-pipeline environments:
+
 ```bash
-cp configs/auto_pipeline.env.example configs/auto_pipeline.env
 bash scripts/run_auto_pipeline.sh
 ```
 
-Set the model paths and optional `VLM_COMMAND` / `INPAINT_COMMAND` hooks in `configs/auto_pipeline.env`. The final outputs are:
+Set `OBJECT_FILE` or `VLM_COMMAND` and the image-edit API key in `configs/auto_pipeline.env`. The final outputs are:
 
 ```text
-outputs/release_demo_2/
+outputs/automatic/
   gravity_aligned_background.ply
   fully_refined_foreground.glb
   layered_preview.png
@@ -120,6 +151,8 @@ outputs/release_demo_2/
 ```
 
 Render an existing result with `bash scripts/render_gravity_aligned_scene.sh`.
+
+See [docs/automatic_pipeline_setup.md](docs/automatic_pipeline_setup.md) for model downloads and environment overrides.
 
 ## GUI
 
@@ -159,11 +192,18 @@ python3 scripts/gui/python/download_checkpoints.py --dry-run --skip-optional
 python3 scripts/gui/python/download_checkpoints.py --sam3d-repo <your-sam3d-checkpoint-repo>
 ```
 
+For the full pipeline:
+
+```bash
+conda run -n robosnap-asset python scripts/download_auto_checkpoints.py --core
+conda run -n robosnap-asset python scripts/download_auto_checkpoints.py --lyra --accept-lyra-license
+```
+
 ## Configuration
 
-RoboSnap can be configured through `configs/gui.env`.
+The GUI uses `configs/gui.env`. The full pipeline uses `configs/auto_pipeline.env`, which is written by `scripts/install_auto_pipeline.sh`.
 
-Create a local configuration file if you need to override default paths:
+Create a GUI override file only when needed:
 
 ```bash
 cp configs/gui.env.example configs/gui.env
