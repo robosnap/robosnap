@@ -1,0 +1,9 @@
+You are an excellent image inpainter and currently are here to help me inpaint the masked image where only the background is reserved and the interactive area is removed.
+Please remove all the black area from these scenes, which is not included in the background.
+Keep the room structure unchanged.
+Preserve walls, floor, ceiling, windows and lighting to recover a full background image.
+Do not change camera perspective.
+Return an empty background with consistent geometry and textures. I stress again that I am asking you to inpaint the background, {!not!} refill the mask area.
+Make additional careful checks in order not to delete additional background objects.
+If there are any pixels from the interactive area that were not completely removed, please remove them as well, leaving only the background.
+Special reminder: remove the desktop area as well since I generate the area separately. I want the background to be empty to hold the desk.

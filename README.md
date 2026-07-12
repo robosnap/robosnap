@@ -102,6 +102,25 @@ bash scripts/run_gui.sh
 ```
 
 
+## Automatic Pipeline
+
+```bash
+cp configs/auto_pipeline.env.example configs/auto_pipeline.env
+bash scripts/run_auto_pipeline.sh
+```
+
+Set the model paths and optional `VLM_COMMAND` / `INPAINT_COMMAND` hooks in `configs/auto_pipeline.env`. The final outputs are:
+
+```text
+outputs/release_demo_2/
+  gravity_aligned_background.ply
+  fully_refined_foreground.glb
+  layered_preview.png
+  pipeline_report.json
+```
+
+Render an existing result with `bash scripts/render_gravity_aligned_scene.sh`.
+
 ## GUI
 
 The pipeline of our GUI tool includes:

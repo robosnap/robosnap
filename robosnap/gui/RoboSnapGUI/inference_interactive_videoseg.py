@@ -1579,7 +1579,6 @@ def main(args):
                 ROBOSNAP_ROOT / ".git",
                 ROBOSNAP_ROOT / "data",
                 Path.home() / ".ssh",
-                Path("/cpfs/user/zhangshujie/ikea"),
                 *args.blocked_root,
             ]
         else:

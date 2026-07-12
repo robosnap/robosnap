@@ -10,11 +10,13 @@ data/
 
 # Local env files
 configs/gui.env
+configs/auto_pipeline.env
 .env
 
 # Python
 __pycache__/
 *.py[cod]
+*.orig
 .venv/
 
 
@@ -32,14 +34,8 @@ dist/
 .pytest_cache/
 robosnap/gui/RoboSnapGUI copy/
 
-# First GUI release excludes future pipeline modules
-robosnap/alignment/
-robosnap/background/
+# Dataset payloads are released separately; source modules stay trackable.
 robosnap/datasets/
-robosnap/pose/
-robosnap/preprocess/
-robosnap/refinement/
-robosnap/rendering/
 # Non-GUI third-party snapshots staged for later releases
 third_party/DiffusionLight/
 third_party/FoundationPose/
@@ -51,3 +47,22 @@ third_party/Grounded-SAM-2/
 !examples/video.mp4
 
 .gradio/
+
+# Model weights and build caches
+*.ckpt
+*.safetensors
+*.pt
+*.pth
+*.onnx
+*.engine
+*.egg-info/
+build/
+.cache/
+wandb/
+
+# Local automatic-pipeline debug artifacts
+feedback.md
+configs/release_demo_2_objects.txt
+scripts/make_mask_contact.py
+scripts/merge_release_demo_2_masks.py
+scripts/report_masks.py
