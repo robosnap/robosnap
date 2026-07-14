@@ -28,6 +28,60 @@ More components from the paper, including **evaluation code**, **real-robot depl
 - [ ] DROID-Sim dataset
 
 
+
+## Automatic Pipeline
+
+After installing the full-pipeline environments:
+
+```bash
+export GEMINI_API_KEY=<your-api-key>
+bash scripts/run_auto_pipeline.sh
+```
+
+The default adapter uses Gemini for object discovery and semantic background editing. Provider commands and input/output paths can be changed in `configs/auto_pipeline.env`. The final outputs are:
+
+```text
+outputs/automatic/
+  gravity_aligned_background.ply
+  fully_refined_foreground.glb
+  layered_preview.png
+  pipeline_report.json
+```
+
+Render an existing result with `bash scripts/render_gravity_aligned_scene.sh`.
+
+See [docs/automatic_pipeline_setup.md](docs/automatic_pipeline_setup.md) for model downloads and environment overrides.
+
+<p align="center">
+  <img src="assets/example.png" alt="RoboSnap automatic pipeline examples" width="1000">
+</p>
+
+## GUI
+
+The pipeline of our GUI tool includes:
+
+1. Upload a video/image.
+2. Add text prompt and positive and negative prompt points.
+3. Confirm, preview and save masks.
+4. Generate GLB assets and compose a scene.
+5. (Optional) Articulated objects segmentation.
+
+
+<p align="center">
+  <img src="assets/gui_preview.png" alt="RoboSnap GUI preview" width="500">
+</p>
+
+The GUI provides the recommended workflow for mask refinement and asset generation. The mask-to-assets stage can also be executed from an existing mask workspace using:
+`scripts/gui/bash/run_mask_to_assets.sh`.
+
+> **Note:** For multi-view asset generation using the top-20 mask candidates, we recommend a GPU environment with at least **48GB of VRAM** to ensure smooth execution.
+
+### Online Demo
+
+We provide an online Gradio demo to showcase the capabilities of the RoboSnap GUI tool.
+You can access the demo [here](https://0a1b81dfcc87953981.gradio.live).
+
+
 ## Environment
 
 ### Docker
@@ -121,59 +175,6 @@ bash scripts/install_auto_pipeline.sh -y
 ```
 
 This creates `robosnap-sam3`, `robosnap-asset`, `robosnap-lyra`, and `robosnap-sim`, then writes `configs/auto_pipeline.env`. The GUI environments are not required.
-
-## Automatic Pipeline
-
-After installing the full-pipeline environments:
-
-```bash
-export GEMINI_API_KEY=<your-api-key>
-bash scripts/run_auto_pipeline.sh
-```
-
-The default adapter uses Gemini for object discovery and semantic background editing. Provider commands and input/output paths can be changed in `configs/auto_pipeline.env`. The final outputs are:
-
-```text
-outputs/automatic/
-  gravity_aligned_background.ply
-  fully_refined_foreground.glb
-  layered_preview.png
-  pipeline_report.json
-```
-
-Render an existing result with `bash scripts/render_gravity_aligned_scene.sh`.
-
-See [docs/automatic_pipeline_setup.md](docs/automatic_pipeline_setup.md) for model downloads and environment overrides.
-
-<p align="center">
-  <img src="assets/example.png" alt="RoboSnap automatic pipeline examples" width="1000">
-</p>
-
-## GUI
-
-The pipeline of our GUI tool includes:
-
-1. Upload a video/image.
-2. Add text prompt and positive and negative prompt points.
-3. Confirm, preview and save masks.
-4. Generate GLB assets and compose a scene.
-5. (Optional) Articulated objects segmentation.
-
-
-<p align="center">
-  <img src="assets/gui_preview.png" alt="RoboSnap GUI preview" width="500">
-</p>
-
-The GUI provides the recommended workflow for mask refinement and asset generation. The mask-to-assets stage can also be executed from an existing mask workspace using:
-`scripts/gui/bash/run_mask_to_assets.sh`.
-
-> **Note:** For multi-view asset generation using the top-20 mask candidates, we recommend a GPU environment with at least **48GB of VRAM** to ensure smooth execution.
-
-### Online Demo
-
-We provide an online Gradio demo to showcase the capabilities of the RoboSnap GUI tool.
-You can access the demo [here](https://0a1b81dfcc87953981.gradio.live).
-
 
 
 ## Checkpoints
