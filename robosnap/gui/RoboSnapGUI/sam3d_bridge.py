@@ -54,7 +54,6 @@ def generate_3d_meshes_for_all_objects(
         dict with keys: success, message, generated_objects, logs
     """
     import subprocess
-    import os
 
     PY_ASSET = py_asset
     SAM3D_DIR = Path(sam3d_dir).expanduser().resolve() if sam3d_dir is not None else Path(".").resolve()
@@ -131,7 +130,7 @@ def generate_3d_meshes_for_all_objects(
     if object_dirs and not missing_objects:
         log(f"[3D Gen] Found meshes for all {len(existing_objects)} mask objects in {out_dir}")
         log(f"[3D Gen] Objects: {existing_objects}")
-        log(f"[3D Gen] Skipping run_inference.py - all meshes already exist!")
+        log("[3D Gen] Skipping run_inference.py - all meshes already exist!")
         
         # Still need to run image2glb.py for scale if scene_composed.glb doesn't exist
         single_mask_dir = out_dir.parent / "single_mask"
@@ -156,7 +155,7 @@ def generate_3d_meshes_for_all_objects(
                     log(f"[3D Gen] Copied mask {first_mask.name} -> single_mask/{idx}.png")
 
             # Run image2glb.py for scale extraction and scene composition
-            log(f"[3D Gen] Running image2glb.py for scale extraction...")
+            log("[3D Gen] Running image2glb.py for scale extraction...")
             image2glb = SAM3D_DIR / "sam3d_objects" / "image2glb.py"
             num_masks = len([f for f in single_mask_dir.glob("*.glb") if f.name != "scene_composed.glb"]) if single_mask_dir.exists() else 0
             try:
@@ -180,13 +179,13 @@ def generate_3d_meshes_for_all_objects(
                         log(line)
                 proc.wait()
                 if proc.returncode == 0:
-                    log(f"[3D Gen] image2glb.py completed successfully!")
+                    log("[3D Gen] image2glb.py completed successfully!")
                 else:
                     log(f"[3D Gen] image2glb.py warning: exited with code {proc.returncode}")
             except Exception as e:
                 log(f"[3D Gen] image2glb.py error: {str(e)}")
         else:
-            log(f"[3D Gen] scene_composed.glb already exists, skipping image2glb.py")
+            log("[3D Gen] scene_composed.glb already exists, skipping image2glb.py")
         
         return {
             "success": True,
@@ -200,11 +199,11 @@ def generate_3d_meshes_for_all_objects(
         if existing_objects:
             log(f"[3D Gen] Existing meshes: {existing_objects}")
         log(f"[3D Gen] Missing meshes: {missing_objects}")
-        log(f"[3D Gen] Running run_inference.py to generate missing meshes")
+        log("[3D Gen] Running run_inference.py to generate missing meshes")
     
     # Step 2: Run run_inference.py --compose_scene
     if not object_dirs:
-        log(f"[3D Gen] No mask object folders found. Starting run_inference.py with --compose_scene")
+        log("[3D Gen] No mask object folders found. Starting run_inference.py with --compose_scene")
     
     run_inference = SAM3D_DIR / "sam3d_objects" / "run_inference.py"
     
@@ -237,7 +236,7 @@ def generate_3d_meshes_for_all_objects(
             log(f"[3D Gen] run_inference.py exited with code {proc.returncode}")
             return {"success": False, "message": f"run_inference.py failed (code {proc.returncode})", "generated_objects": [], "logs": logs}
 
-        log(f"[3D Gen] run_inference.py completed successfully!")
+        log("[3D Gen] run_inference.py completed successfully!")
 
     except Exception as e:
         log(f"[3D Gen] Exception: {str(e)}")
@@ -300,7 +299,7 @@ def generate_3d_meshes_for_all_objects(
         proc2.wait()
 
         if proc2.returncode == 0:
-            log(f"[3D Gen] image2glb.py completed successfully!")
+            log("[3D Gen] image2glb.py completed successfully!")
         else:
             log(f"[3D Gen] image2glb.py warning: exited with code {proc2.returncode}")
 

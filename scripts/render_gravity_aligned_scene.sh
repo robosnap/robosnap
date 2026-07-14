@@ -29,7 +29,7 @@ OUTPUT_IMAGE="${OUTPUT_IMAGE:-${SCENE_DIR}/layered_preview.png}"
 STATUS_JSON="${STATUS_JSON:-${SCENE_DIR}/layered_preview_status.json}"
 CAMERA_NPZ="${CAMERA_NPZ:-${SCENE_DIR}/background/lyra2_gs/cameras.npz}"
 GRAVITY_TRANSFORM="${GRAVITY_TRANSFORM:-${SCENE_DIR}/gravity_alignment.json}"
-FOREGROUND_CAMERA_JSON="${FOREGROUND_CAMERA_JSON:-${SCENE_DIR}/sam3d+fpose/vggt_single_image/camera.json}"
+FOREGROUND_CAMERA_JSON="${FOREGROUND_CAMERA_JSON:-${SCENE_DIR}/reconstruction/vggt/camera.json}"
 FOREGROUND_SAMPLES="${FOREGROUND_SAMPLES:-100000}"
 RENDER_DEVICE="${RENDER_DEVICE:-${ROBOSNAP_DEVICE:-cuda:0}}"
 

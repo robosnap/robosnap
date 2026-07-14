@@ -29,16 +29,10 @@ import argparse
 import re
 import shutil
 from datetime import datetime, timezone
-import re
-import json
-import base64
 import zipfile
 import gradio as gr
 import numpy as np
 from pathlib import Path
-import torch
-from PIL import Image
-import subprocess
 
 from sam3.model_builder import build_sam3_video_predictor
 from articulate_manager import ArticulateObjectManager
@@ -681,7 +675,7 @@ def main(args):
                     ensure_dir(background_dir)
                     if frame0_mask is not None:
                         save_rgba_background(frame0_mask, frames[0], background_dir / "000000.png")
-                        print(f"[interactive_area] Saved background mask to background/000000.png")
+                        print("[interactive_area] Saved background mask to background/000000.png")
                     saved_objects.append("background")
                     save_message = f"✅ Saved 1 background frame to `{background_dir}`."
                 else:
@@ -752,9 +746,9 @@ def main(args):
                 # >>> CHANGED: Save high-quality frame0 mask first (user clicked)
                 if frame0_mask is not None:
                     save_rgba_background(frame0_mask, frames[0], background_dir / "000000.png")
-                    print(f"[interactive_area] Saved high-quality frame0 mask to background/000000.png")
+                    print("[interactive_area] Saved high-quality frame0 mask to background/000000.png")
                 else:
-                    print(f"[interactive_area] Warning: frame0_mask is None, using propagated mask")
+                    print("[interactive_area] Warning: frame0_mask is None, using propagated mask")
 
                 # Save frames from index 1 onwards (skip frame0 since we already saved high-quality version)
                 for fidx in range(1, len(frames)):
@@ -861,9 +855,6 @@ def main(args):
                 btn_refresh_objects = gr.Button("🔄 Refresh", scale=1)
                 btn_generate_meshes = gr.Button("🎲 Generate Meshes", scale=1)
             
-            # >>> NEW: Store choices in State for dynamic updates
-            object_choices_state = gr.State(value=[])
-            
             with gr.Row():
                 # Object list
                 object_list = gr.Dataframe(
@@ -924,7 +915,7 @@ def main(args):
 
                 if not object_dir.exists():
                     return (
-                        f"<div style='text-align: center; padding: 50px; color: #888;'>Directory not found</div>",
+                        "<div style='text-align: center; padding: 50px; color: #888;'>Directory not found</div>",
                         object_name,
                         gr.update(visible=False),
                         gr.update(visible=False),
@@ -934,7 +925,7 @@ def main(args):
                 glb_files = list(object_dir.glob("*.glb"))
                 if not glb_files:
                     return (
-                        f"<div style='text-align: center; padding: 50px; color: #888;'>No GLB files</div>",
+                        "<div style='text-align: center; padding: 50px; color: #888;'>No GLB files</div>",
                         object_name,
                         gr.update(visible=False),
                         gr.update(visible=False),
@@ -1052,9 +1043,6 @@ def main(args):
                 inputs=[articulate_current_object],
                 outputs=[articulate_viewer, articulate_current_object, btn_open_new_tab, btn_close_articulate]
             )
-            
-            # Hidden state for current object used by the viewer
-            current_object_state = gr.State(value=None)
             
             def load_object_for_annotation(object_name, scan_path):
                 """Load object meshes for joint annotation"""
@@ -1199,9 +1187,6 @@ def main(args):
         # 3D Generation Section (appears after clicking End)
         # ============================================================
         
-        # Global state for tracking generation progress
-        generation_progress = gr.State(value={"logs": [], "current": 0, "total": 0, "done": False})
-        
         with gr.Column(visible=False) as generation_section:
             gr.Markdown("## 🔄 Generating 3D Meshes")
             gr.Markdown("Please wait while the system generates 3D models from your masks...")
@@ -1238,8 +1223,6 @@ def main(args):
             # Button to skip and continue (if some meshes are done)
             btn_skip_generation = gr.Button("⏭️ Skip to Articulate (if meshes exist)")
             
-            # Hidden continue button (auto-trigger after generation)
-            btn_continue_to_articulate = gr.Button("Continue to Articulate", visible=False)
         
         def update_progress_ui(logs, current, total):
             """Update the progress UI"""
@@ -1389,43 +1372,6 @@ def main(args):
             attempt_continue,
             outputs=[generation_section, articulate_section, status, scan_path_input, object_dropdown, object_list]
         )
-        
-        # Add a "I'm done waiting" button for user to manually check
-        with gr.Row(visible=False) as generation_controls:
-            btn_manual_check = gr.Button("Check if Done")
-        
-        def manual_check_done():
-            objects = articulate_manager.scan_segmented_objects(str(out_dir))
-            done_count = sum(1 for obj in objects if (out_dir / obj["name"] / f"{obj['name']}.glb").exists())
-            total_count = len(objects)
-            
-            if done_count == total_count and total_count > 0:
-                return show_articulate_after_generation()
-            else:
-                return {
-                    generation_logs: f"Still generating... {done_count}/{total_count} objects have meshes.\n\nIf some objects already have meshes, you can manually continue to Articulate mode.",
-                    generation_status: f"⏳ Progress: {done_count}/{total_count} objects",
-                    status: f"⏳ Generating 3D: {done_count}/{total_count} done"
-                }
-        
-        # Update the generation section to include a manual continue option
-        def update_generation_section_manual():
-            objects = articulate_manager.scan_segmented_objects(str(out_dir))
-            done_count = sum(1 for obj in objects if (out_dir / obj["name"] / f"{obj['name']}.glb").exists())
-            total_count = len(objects)
-            
-            # Check if done
-            if done_count == total_count and total_count > 0:
-                return show_articulate_after_generation()
-            
-            # Not done yet, show current state
-            log_text = f"Generation in progress...\n\nObjects: {total_count}\nCompleted: {done_count}\n\nIf you want to skip waiting and check current status, click 'Check Progress' below.\n\nNote: Each object takes ~30-60 seconds for mesh + scale generation."
-            
-            return {
-                generation_logs: log_text,
-                generation_status: f"⏳ {done_count}/{total_count} objects completed",
-                status: f"🔄 Generating 3D: {done_count}/{total_count}"
-            }
         
         # ============================================================
         # Bind Generation Section Buttons

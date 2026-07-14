@@ -14,9 +14,9 @@ from __future__ import annotations
 import json
 import os
 import time
-from collections import defaultdict, deque
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 import cv2
 import numpy as np
@@ -31,9 +31,7 @@ from .losses import (
 )
 from .sdf_utils import (
     compute_sdf_grid,
-    query_sdf,
     sample_surface_points,
-
     save_sdf_debug_artifacts,
     make_mesh_watertight_for_sdf,
     _mesh_diagnostics

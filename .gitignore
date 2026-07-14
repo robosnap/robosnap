@@ -18,6 +18,7 @@ configs/auto_pipeline.env
 .env
 
 # Python
+tests/
 __pycache__/
 *.py[cod]
 *.orig
@@ -77,5 +78,11 @@ build/
 .cache/
 wandb/
 
-# Local automatic-pipeline debug artifacts
+# Local development artifact
 feedback.md
+
+# Local batch evaluation tools
+scripts/precompute_batch_vggt.py
+scripts/run_batch_layered_scenes.py
+scripts/run_batch_marble_alignment.py
+scripts/run_foreground_inference.py

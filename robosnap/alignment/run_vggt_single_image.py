@@ -22,23 +22,11 @@ if str(VGGT_DIR) not in sys.path:
     sys.path.insert(0, str(VGGT_DIR))
 
 from robosnap.alignment.vggt_io import load_model, save_depth_preview, save_pcd, save_ply, select_points
+from robosnap.scene_paths import reconstruction_dir
 from vggt.utils.geometry import unproject_depth_map_to_point_map
 from vggt.utils.load_fn import load_and_preprocess_images
 from vggt.utils.pose_enc import pose_encoding_to_extri_intri
 
-
-DEFAULT_SCENES = [
-    "scene01",
-    "scene02",
-    "scene03",
-    "scene05",
-    "scene07",
-    "scene09",
-    "scene10",
-    "scene12_backup",
-    "scene14_backup",
-    "scene15_backup",
-]
 
 
 def parse_args():
@@ -48,9 +36,9 @@ def parse_args():
         required=True,
         help="Root containing sceneXX folders.",
     )
-    parser.add_argument("--scenes", nargs="*", default=DEFAULT_SCENES, help="Scene folder names to process.")
+    parser.add_argument("--scenes", nargs="+", required=True, help="Scene folder names to process.")
     parser.add_argument("--image-name", default="image.png", help="Image filename inside each scene.")
-    parser.add_argument("--output-name", default="vggt_single_image", help="Subfolder under sam3d+fpose.")
+    parser.add_argument("--output-name", default="vggt", help="Subfolder under reconstruction.")
     parser.add_argument("--model", default="facebook/VGGT-1B", help="Hugging Face model id.")
     parser.add_argument("--checkpoint", default=None, help="Optional local model.pt checkpoint path.")
     parser.add_argument("--mode", choices=["pad", "crop"], default="pad", help="Image preprocessing mode.")
@@ -229,7 +217,7 @@ def main():
         if not image_path.exists():
             raise FileNotFoundError(f"Missing image: {image_path}")
 
-        output_dir = scene_dir / "sam3d+fpose" / args.output_name
+        output_dir = reconstruction_dir(scene_dir) / args.output_name
         written_dir, point_count = run_one_scene(model, image_path, output_dir, args, device, dtype)
         print(f"{scene}: wrote {written_dir} ({point_count} points)")
 

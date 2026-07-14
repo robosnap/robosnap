@@ -197,7 +197,7 @@ def reproducibility_record(args: argparse.Namespace) -> dict:
     repo_root = Path(__file__).resolve().parents[2]
     refinement_root = repo_root / "robosnap" / "refinement"
     sf_core = refinement_root / "sf_real2sim"
-    adapter = refinement_root / "sf_real2sim_layoutopt.py"
+    optimizer_entrypoint = sf_core / "optimize_scene.py"
     stabilizer = refinement_root / "stabilize_scene_projection.py"
     return {
         "pipeline": [
@@ -215,7 +215,7 @@ def reproducibility_record(args: argparse.Namespace) -> dict:
             "source_tree_sha256": sha256_tree(sf_core),
         },
         "orchestrator_sha256": sha256_file(Path(__file__)),
-        "adapter_sha256": sha256_file(adapter),
+        "optimizer_sha256": sha256_file(optimizer_entrypoint),
         "projection_stabilizer_sha256": sha256_file(stabilizer),
         "sf_environment": python_environment(args.sf_python, sf_pythonpath(args)),
         "sf_pythonpath": sf_pythonpath(args),
@@ -428,7 +428,7 @@ def prepare_sf_real2sim_inputs(args: argparse.Namespace) -> dict:
 
         pose_camera = np.loadtxt(obj["pose_icp"]).astype(np.float64)
         pose_gravity = T_gravity_from_camera @ pose_camera
-        optimized_pose = obj_dir / "pose_v3_optimized.txt"
+        optimized_pose = obj_dir / "pose_optimized.txt"
         if optimized_pose.exists():
             optimized_pose.unlink()
         np.savetxt(obj_dir / "pose_camera.txt", pose_camera, fmt="%.10g")
@@ -474,7 +474,7 @@ def prepare_sf_real2sim_inputs(args: argparse.Namespace) -> dict:
         "results_dir": str(results_dir),
         "scene_graph_path": str(scene_graph_path),
         "input_pose_name": "pose_gravity",
-        "output_pose_name": "pose_v3_optimized",
+        "output_pose_name": "pose_optimized",
         "scene_graph_source": scene_graph_source,
         "support_object_ids": support_ids,
         "scene_graph_edges": len(edges),
@@ -561,7 +561,7 @@ def prepare_second_pass_inputs(manifest: dict) -> dict:
         source_mask = source_dir / "mask.png"
         if source_mask.exists():
             shutil.copy2(source_mask, target_dir / "mask.png")
-        optimized_pose = target_dir / "pose_v3_optimized.txt"
+        optimized_pose = target_dir / "pose_optimized.txt"
         if optimized_pose.exists():
             optimized_pose.unlink()
 
@@ -583,7 +583,7 @@ def prepare_second_pass_inputs(manifest: dict) -> dict:
         "status": "prepared_second_pass",
         "results_dir": str(pass2_results),
         "input_pose_name": "pose_projection_stabilized",
-        "output_pose_name": "pose_v3_optimized",
+        "output_pose_name": "pose_optimized",
         "objects": objects,
         "source_results_dir": str(first_results),
     }
@@ -594,7 +594,7 @@ def prepare_second_pass_inputs(manifest: dict) -> dict:
     return second
 
 
-def run_sf_layoutopt(
+def run_sf_optimizer(
     args: argparse.Namespace,
     manifest: dict,
     *,
@@ -639,7 +639,7 @@ def run_sf_layoutopt(
     cmd = [
         args.sf_python,
         "-m",
-        "robosnap.refinement.sf_real2sim_layoutopt",
+        "robosnap.refinement.sf_real2sim.optimize_scene",
         "--results-dir",
         manifest["results_dir"],
         "--scene-graph-path",
@@ -684,7 +684,7 @@ def run_sf_layoutopt(
     if args.sf_disable_collision_split:
         cmd.append("--disable-collision-split")
 
-    log_name = "sf_real2sim_layoutopt.log" if label == "pass1" else f"sf_real2sim_layoutopt_{label}.log"
+    log_name = "sf_real2sim_optimizer.log" if label == "pass1" else f"sf_real2sim_optimizer_{label}.log"
     log_path = args.refinement_dir / log_name
     env = os.environ.copy()
     extra_paths = [part for part in str(args.sf_extra_pythonpath).split(os.pathsep) if part]
@@ -852,7 +852,7 @@ def main() -> int:
             )
             status["sf_real2sim_inputs"] = manifest
 
-            pass1 = run_sf_layoutopt(args, manifest)
+            pass1 = run_sf_optimizer(args, manifest)
             status.update(pass1)
             status["sf_pass1"] = pass1
             if pass1["status"] == "sf_ok":
@@ -875,7 +875,7 @@ def main() -> int:
                 second_manifest = prepare_second_pass_inputs(manifest)
                 status["sf_second_pass_inputs"] = second_manifest
                 second_raw = Path(second_manifest["results_dir"]).parent / "second_pass_raw.glb"
-                pass2 = run_sf_layoutopt(
+                pass2 = run_sf_optimizer(
                     args,
                     second_manifest,
                     label="pass2",

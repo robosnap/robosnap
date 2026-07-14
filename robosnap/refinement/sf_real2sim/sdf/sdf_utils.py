@@ -481,7 +481,7 @@ def _make_watertight_with_pymeshfix(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
     except ImportError as exc:
         raise ImportError(
             "pymeshfix is required for watertight SDF mesh repair. "
-            "Install it in the foundationpose environment with: "
+            "Install it in the simulation environment with: "
             "python -m pip install pymeshfix"
         ) from exc
 

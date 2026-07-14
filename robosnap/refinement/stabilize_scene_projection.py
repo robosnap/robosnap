@@ -9,6 +9,8 @@ import trimesh
 from PIL import Image
 from scipy.ndimage import label
 
+from robosnap.scene_paths import vggt_dir
+
 
 def transform_points(points: np.ndarray, pose: np.ndarray) -> np.ndarray:
     return points @ pose[:3, :3].T + pose[:3, 3]
@@ -198,7 +200,7 @@ def load_gravity_camera(scene_dir: Path) -> tuple[np.ndarray, np.ndarray]:
     w2c_gravity = foreground_w2c @ np.linalg.inv(transform_gravity_from_camera)
 
     camera = json.loads(
-        (scene_dir / "sam3d+fpose" / "vggt_single_image" / "camera.json").read_text(
+        (vggt_dir(scene_dir) / "camera.json").read_text(
             encoding="utf-8"
         )
     )

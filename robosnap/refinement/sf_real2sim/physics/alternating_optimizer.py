@@ -1,7 +1,7 @@
 """
 Alternating SDF + SAPIEN optimizer.
 
-Alternates between gradient-based SDF/scene-graph optimization (v2) and
+Alternates between gradient-based SDF/scene-graph optimization and
 SAPIEN physics simulation to produce robust, sim-ready object layouts.
 
 Key efficiency guarantees:
@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Set
 
 import numpy as np
 
-from ..layoutopt_v2.optimizer import SDFSceneOptimizer, OptimConfig
+from ..sdf.optimizer import SDFSceneOptimizer, OptimConfig
 from .collision import prepare_all_collisions
 from .simulator import SapienSimulator, SimConfig
 
@@ -30,13 +30,13 @@ class AlternatingConfig:
     """Hyper-parameters for the alternating optimisation loop."""
 
     # Alternating loop
-    num_rounds: int = 30 # 20
+    num_rounds: int = 30
     sdf_steps_per_round: int = 15
     sim_steps_per_round: int = 8
-    sim_damping_steps: int = 6 #8 # 100
+    sim_damping_steps: int = 6
     convergence_threshold: float = 1e-3
 
-    # SDF optimizer config (passed to v2)
+    # SDF optimizer config (passed to the SDF optimizer)
     sdf_config: OptimConfig = field(default_factory=OptimConfig)
 
     # SAPIEN physics config

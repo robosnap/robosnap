@@ -2,7 +2,7 @@
 """
 Refine SAM3D object poses against VGGT single-image object point clouds.
 
-The input object meshes are sam3d+fpose/scaled/{id}_z_up.glb, so SAM3D scale is
+The input object meshes are reconstruction/meshes/{id}_z_up.glb, so SAM3D scale is
 already baked into the mesh. This script keeps that scale fixed and only refines
 SE(3) with ICP.
 
@@ -30,6 +30,9 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 import open3d as o3d
 import trimesh
 from PIL import Image
+
+from robosnap.scene_paths import mesh_dir as scene_mesh_dir
+from robosnap.scene_paths import vggt_dir as scene_vggt_dir
 
 
 R_SAM_TO_VGGT = np.array(
@@ -60,14 +63,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--scene-dir",
         required=True,
-        help="Scene directory containing image.png, sam3d, and sam3d+fpose/vggt_single_image.",
+        help="Scene directory containing image.png, sam3d, and reconstruction/vggt.",
     )
     parser.add_argument(
+        "--scene-output-dir",
         "--collection-dir",
+        dest="scene_output_dir",
         default=None,
-        help="Directory for composed scene outputs. Default: <scene-dir>/sam3d_vggt_icp_outputs.",
+        help="Directory for the refined scene GLB. Default: <scene-dir>.",
     )
-    parser.add_argument("--output-subdir", default="icp", help="Subdirectory under scene-dir for intermediate outputs.")
+    parser.add_argument(
+        "--output-subdir",
+        default="depth/object_point_clouds",
+        help="Subdirectory under scene-dir for point clouds and ICP reports.",
+    )
     parser.add_argument("--object-ids", nargs="*", type=int, default=None, help="Object ids to refine. Default: discover all.")
     parser.add_argument("--target-conf-min", type=float, default=1.0, help="Minimum VGGT depth_conf for target points.")
     parser.add_argument("--mask-alpha-threshold", type=int, default=0, help="Foreground threshold for RGBA alpha masks.")
@@ -86,7 +95,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-accepted-rotation-deg", type=float, default=45.0, help="Reject ICP delta above this rotation. <=0 disables.")
     parser.add_argument("--max-accepted-translation", type=float, default=0.5, help="Reject ICP delta above this translation. <=0 disables.")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--scene-output-name", default=None, help="Default: {scene_name}_composed_ours.glb")
+    parser.add_argument("--scene-output-name", default="refined_scene.glb")
     return parser.parse_args()
 
 
@@ -391,14 +400,14 @@ def discover_object_ids(sam3d_dir: Path, mesh_dir: Path) -> list[int]:
 def main() -> None:
     args = parse_args()
     scene_dir = Path(args.scene_dir)
-    collection_dir = Path(args.collection_dir) if args.collection_dir else (scene_dir / "sam3d_vggt_icp_outputs")
+    scene_output_dir = Path(args.scene_output_dir) if args.scene_output_dir else scene_dir
     sam3d_dir = scene_dir / "sam3d"
-    mesh_dir = scene_dir / "sam3d+fpose" / "scaled"
-    vggt_dir = scene_dir / "sam3d+fpose" / "vggt_single_image"
+    mesh_dir = scene_mesh_dir(scene_dir)
+    vggt_dir = scene_vggt_dir(scene_dir)
     out_dir = scene_dir / args.output_subdir
     mask_process_dir = out_dir / "mask_process"
     out_dir.mkdir(parents=True, exist_ok=True)
-    collection_dir.mkdir(parents=True, exist_ok=True)
+    scene_output_dir.mkdir(parents=True, exist_ok=True)
 
     with open(vggt_dir / "camera.json", "r", encoding="utf-8") as f:
         camera = json.load(f)
@@ -649,8 +658,7 @@ def main() -> None:
                 f"delta_t={delta_translation:.4f}, delta_R={delta_rotation_deg:.2f}deg, {suffix}"
             )
 
-    scene_output_name = args.scene_output_name or f"{scene_dir.name}_composed_ours.glb"
-    scene_out = collection_dir / scene_output_name
+    scene_out = scene_output_dir / args.scene_output_name
     composed.export(str(scene_out))
     report["scene_output"] = str(scene_out)
 

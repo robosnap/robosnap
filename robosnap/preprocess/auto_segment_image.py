@@ -24,7 +24,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from robosnap.preprocess.sam3_mask_retry import (
+from robosnap.preprocess.sam3_mask_recovery import (
     fill_binary_holes,
     filter_small_components,
     recover_sam3_masks,

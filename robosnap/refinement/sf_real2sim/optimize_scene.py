@@ -41,11 +41,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--results-dir", required=True)
     parser.add_argument("--scene-graph-path", required=True)
     parser.add_argument("--input-pose-name", default="pose_gravity")
-    parser.add_argument("--output-pose-name", default="pose_v3_optimized")
+    parser.add_argument("--output-pose-name", default="pose_optimized")
     parser.add_argument("--disable-initial-pose-regularization", action="store_true")
-    parser.add_argument("--regularized-pose-name", default="pose_v3_initial_regularized")
+    parser.add_argument("--regularized-pose-name", default="pose_initial_regularized")
     parser.add_argument("--save-pose-trajectory", action="store_true")
-    parser.add_argument("--pose-trajectory-name", default="pose_trajectory_v3.json")
+    parser.add_argument("--pose-trajectory-name", default="pose_trajectory.json")
     parser.add_argument("--collision-method", default=os.environ.get("SF_REAL2SIM_COLLISION_METHOD", "vhacd"), choices=("vhacd", "coacd"))
     parser.add_argument("--disable-collision-split", action="store_true", default=env_flag("SF_REAL2SIM_DISABLE_COLLISION_SPLIT", True))
     parser.add_argument("--use-cached-collisions", action="store_true", default=env_flag("SF_REAL2SIM_USE_CACHED_COLLISIONS", False))
@@ -81,14 +81,14 @@ def main() -> int:
     except ImportError:
         pass
 
-    from robosnap.refinement.sf_real2sim.layoutopt_v2.optimizer import OptimConfig, SDFSceneOptimizer
-    import robosnap.refinement.sf_real2sim.layoutopt_v3.alternating_optimizer as alternating_module
-    from robosnap.refinement.sf_real2sim.layoutopt_v3.alternating_optimizer import AlternatingConfig
-    from robosnap.refinement.sf_real2sim.layoutopt_v3.initial_pose_regularizer import (
+    from robosnap.refinement.sf_real2sim.sdf.optimizer import OptimConfig, SDFSceneOptimizer
+    import robosnap.refinement.sf_real2sim.physics.alternating_optimizer as alternating_module
+    from robosnap.refinement.sf_real2sim.physics.alternating_optimizer import AlternatingConfig
+    from robosnap.refinement.sf_real2sim.physics.initial_pose_regularizer import (
         InitialPoseRegularizerConfig,
         regularize_initial_poses,
     )
-    from robosnap.refinement.sf_real2sim.layoutopt_v3.simulator import SimConfig
+    from robosnap.refinement.sf_real2sim.physics.simulator import SimConfig
     from robosnap.refinement.sf_real2sim.scene_io import load_scene_data, save_optimized_poses
 
     class RootAwareSDFSceneOptimizer(SDFSceneOptimizer):

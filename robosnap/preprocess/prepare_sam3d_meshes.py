@@ -10,6 +10,8 @@ from pathlib import Path
 import numpy as np
 import trimesh
 
+from robosnap.scene_paths import mesh_dir as scene_mesh_dir
+
 
 T_YUP_TO_ZUP = np.eye(4, dtype=np.float64)
 T_YUP_TO_ZUP[:3, :3] = np.array(
@@ -93,10 +95,10 @@ def prepare_one(sam3d_dir: Path, scaled_dir: Path, object_id: int, overwrite: bo
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Create sam3d+fpose/scaled/*_scaled.glb and *_z_up.glb from SAM3D output.")
+    parser = argparse.ArgumentParser(description="Prepare scaled, z-up SAM3D meshes for scene alignment.")
     parser.add_argument("--scene-dir", type=Path, required=True, help="Directory containing sam3d/ and image.png.")
     parser.add_argument("--sam3d-dir", type=Path, help="Default: <scene-dir>/sam3d")
-    parser.add_argument("--scaled-dir", type=Path, help="Default: <scene-dir>/sam3d+fpose/scaled")
+    parser.add_argument("--scaled-dir", type=Path, help="Default: <scene-dir>/reconstruction/meshes")
     parser.add_argument("--object-ids", nargs="*", type=int)
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
@@ -106,7 +108,7 @@ def main() -> int:
     args = parse_args()
     scene_dir = args.scene_dir.expanduser().resolve()
     sam3d_dir = (args.sam3d_dir or scene_dir / "sam3d").expanduser().resolve()
-    scaled_dir = (args.scaled_dir or scene_dir / "sam3d+fpose" / "scaled").expanduser().resolve()
+    scaled_dir = (args.scaled_dir or scene_mesh_dir(scene_dir)).expanduser().resolve()
     scaled_dir.mkdir(parents=True, exist_ok=True)
 
     object_ids = args.object_ids or discover_ids(sam3d_dir)

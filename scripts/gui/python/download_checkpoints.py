@@ -23,10 +23,8 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
-import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 
 @dataclass(frozen=True)

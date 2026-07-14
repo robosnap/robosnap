@@ -38,17 +38,8 @@ sim = [
   "trimesh==4.11.4",
   "vhacdx==0.0.10",
 ]
-inpaint = [
-  "diffusers>=0.30,<0.31",
-  "transformers>=4.36,<4.37",
-  "accelerate",
-  "safetensors",
-]
-
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["robosnap", "robosnap.*"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
+exclude = ["robosnap.datasets", "robosnap.datasets.*"]

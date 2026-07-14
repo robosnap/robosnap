@@ -3,12 +3,10 @@ Articulate Object Manager
 Manages mesh objects and joint annotations for IsaacSim USD format.
 """
 
-import os
 import json
 import numpy as np
 from pathlib import Path
 from typing import List, Dict, Optional, Any
-import shutil
 
 
 class ArticulateObjectManager:

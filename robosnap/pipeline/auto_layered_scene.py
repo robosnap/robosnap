@@ -13,6 +13,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+from robosnap.scene_paths import mesh_dir as scene_mesh_dir
+from robosnap.scene_paths import vggt_dir as scene_vggt_dir
+
 def quote_cmd(cmd: list[str]) -> str:
     return " ".join(shlex.quote(str(part)) for part in cmd)
 
@@ -130,8 +133,8 @@ def sam3d_outputs_valid(mask_dir: Path, count: int) -> bool:
 
 def icp_input_fingerprint(scene_dir: Path, object_count: int, seed: int) -> str:
     sam3d_dir = scene_dir / "sam3d"
-    mesh_dir = scene_dir / "sam3d+fpose" / "scaled"
-    vggt_dir = scene_dir / "sam3d+fpose" / "vggt_single_image"
+    mesh_dir = scene_mesh_dir(scene_dir)
+    vggt_dir = scene_vggt_dir(scene_dir)
     algorithm_path = (
         Path(__file__).resolve().parents[1] / "alignment" / "run_sam3d_vggt_icp.py"
     )
@@ -157,7 +160,7 @@ def icp_input_fingerprint(scene_dir: Path, object_count: int, seed: int) -> str:
     return fingerprint_files(
         paths,
         {
-            "algorithm": "quality_gated_fixed_scale_icp_v2",
+            "algorithm": "quality_gated_fixed_scale_icp",
             "object_count": object_count,
             "seed": seed,
             "omp_num_threads": os.environ.get("OMP_NUM_THREADS", "1"),
@@ -212,7 +215,6 @@ class Runner:
         self.root = Path(__file__).resolve().parents[2]
         self.output_dir = args.output_dir.expanduser().resolve()
         self.log_path = self.output_dir / "pipeline.log"
-        self.feedback_path = self.root / "feedback.md"
         self.report: dict = {"stages": [], "output_dir": str(self.output_dir)}
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -227,9 +229,9 @@ class Runner:
         return env
 
     def note(self, stage: str, message: str) -> None:
-        self.feedback_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.feedback_path.open("a", encoding="utf-8") as f:
-            f.write(f"\n## {stage}\n\n{message.strip()}\n")
+        self.report.setdefault("warnings", []).append(
+            {"stage": stage, "message": message.strip()}
+        )
 
     def run(self, stage: str, cmd: list[str], *, cwd: Path | None = None) -> int:
         cmd = [str(part) for part in cmd]
@@ -475,7 +477,7 @@ def main() -> int:
     if not reuse_sam3d:
         prepare_cmd.append("--overwrite")
     runner.run("sam3d", prepare_cmd)
-    vggt_dir = scene_dir / "sam3d+fpose" / "vggt_single_image"
+    vggt_dir = scene_vggt_dir(scene_dir)
     if not (args.skip_existing and image_unchanged and (vggt_dir / "camera.json").exists()):
         vggt_cmd = [
             args.vggt_python,
@@ -516,7 +518,7 @@ def main() -> int:
             "robosnap.alignment.run_sam3d_vggt_icp",
             "--scene-dir",
             str(scene_dir),
-            "--collection-dir",
+            "--scene-output-dir",
             str(scene_dir),
             "--object-ids",
             *[str(idx) for idx in range(len(object_prompts))],

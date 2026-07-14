@@ -13,7 +13,6 @@ from typing import Dict, List, Optional, Set
 import numpy as np
 import sapien.core as sapien
 from scipy.spatial.transform import Rotation as R
-from tqdm import tqdm
 
 
 # ---------------------------------------------------------------------------

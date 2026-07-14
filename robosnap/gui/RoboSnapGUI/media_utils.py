@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import os
 import re
-import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -298,10 +296,6 @@ def read_video(path: Path, lossless: bool = True):
     if not fps or fps <= 1e-6:
         fps = 20.0
         
-    # Get actual video properties
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    
     while True:
         ret, frame = cap.read()
         if not ret:
