@@ -23,8 +23,8 @@ export ROBOSNAP_ROOT="${ROBOSNAP_ROOT:-${ROOT}}"
 export PYTHONPATH="${ROBOSNAP_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 
 PY_AUTO="${PY_AUTO:-python}"
-INPUT_IMAGE="${INPUT_IMAGE:-${ROBOSNAP_ROOT}/examples/image.png}"
-OUTPUT_DIR="${OUTPUT_DIR:-${ROBOSNAP_ROOT}/outputs/release_demo_2}"
+INPUT_IMAGE="${INPUT_IMAGE:-${ROBOSNAP_ROOT}/examples/test1.png}"
+OUTPUT_DIR="${OUTPUT_DIR:-${ROBOSNAP_ROOT}/outputs/automatic}"
 DEVICE="${DEVICE:-cuda:0}"
 
 args=(

@@ -6,7 +6,7 @@ if [[ $# -gt 0 ]]; then
   SCENE_DIR="$1"
   shift
 else
-  SCENE_DIR="${SCENE_DIR:-${ROOT}/outputs/release_demo_2}"
+  SCENE_DIR="${SCENE_DIR:-${ROOT}/outputs/automatic}"
 fi
 PY_RENDER="${PY_RENDER:-${PY_ALIGN:-${PY_ASSET:-python}}}"
 FOREGROUND="${FOREGROUND:-${SCENE_DIR}/fully_refined_foreground.glb}"

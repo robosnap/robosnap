@@ -79,7 +79,7 @@ def test_mask_builder_does_not_expand_to_image_region(tmp_path) -> None:
     expected = object_mask | support_mask
     assert np.array_equal(final_mask, expected)
     assert not final_mask.any(axis=1).all()
-    assert stats["inpaint_region_policy"] == "instance-union"
+    assert stats["inpaint_region_policy"] == "instance-union+enclosed-hole-fill"
     assert "semantic_lower_region" not in stats
 
 

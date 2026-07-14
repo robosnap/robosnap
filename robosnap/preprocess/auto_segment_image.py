@@ -24,11 +24,19 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from robosnap.preprocess.sam3_mask_retry import (
+    fill_binary_holes,
+    filter_small_components,
+    recover_sam3_masks,
+)
+
 
 DEFAULT_VLM_PROMPT = """Inspect the image and return a JSON object with an objects list.
 List every separate foreground asset needed to reconstruct the interactive scene, including the complete support furniture, every item on or against it, partially occluded or image-border-truncated objects, and near dividers or occluders that intersect the workspace.
 Do not list walls, floor, ceiling, windows, distant people, or distant room furniture.
 Use one entry per physical instance with name and a location-aware prompt suitable for text-prompted segmentation.
+For each entry also return a concise fallback_prompt containing only the object category and relative position.
+Also return bbox_xyxy as normalized [x_min, y_min, x_max, y_max] coordinates for each object.
 Return JSON only."""
 
 DEFAULT_INPAINT_PROMPT = """You are an excellent image inpainter and currently are here to help me inpaint the masked image where only the background is reserved and the interactive area is removed.
@@ -51,9 +59,13 @@ def sha256_file(path: Path) -> str:
 
 
 def load_prompt_text(value: str) -> str:
-    path = Path(value).expanduser()
-    if path.is_file():
-        return path.read_text(encoding="utf-8").strip()
+    if "\n" not in value:
+        try:
+            path = Path(value).expanduser()
+            if path.is_file():
+                return path.read_text(encoding="utf-8").strip()
+        except OSError:
+            pass
     return value.strip()
 
 
@@ -195,7 +207,8 @@ def run_sam3(
         "--prompt_mode",
         "0",
         "--text_prompts",
-        ",".join(prompts),
+        # SAM3 uses commas as its prompt-list delimiter; keep one mask per VLM object.
+        ",".join(prompt.replace(",", ";") for prompt in prompts),
         "--checkpoint",
         str(checkpoint),
         "--out_dir",
@@ -225,7 +238,7 @@ def union_numeric_masks(mask_dir: Path, count: int, size_hw: tuple[int, int]) ->
     for idx in range(count):
         path = mask_dir / f"{idx}.png"
         if path.exists():
-            union |= load_alpha_mask(path, size_hw)
+            union |= filter_small_components(load_alpha_mask(path, size_hw))
     return union
 
 
@@ -245,7 +258,9 @@ def save_mask_products(
     size_hw = rgb.shape[:2]
     object_union = union_numeric_masks(sam3d_dir, object_count, size_hw)
     support_union = union_numeric_masks(support_dir, support_count, size_hw)
-    foreground = object_union | support_union
+    raw_foreground = object_union | support_union
+    foreground = fill_binary_holes(raw_foreground)
+    foreground_hole_pixels = int(np.logical_and(foreground, ~raw_foreground).sum())
 
     def save_rgba(path: Path, alpha_mask: np.ndarray) -> None:
         alpha = (alpha_mask.astype(np.uint8) * 255)
@@ -287,7 +302,8 @@ def save_mask_products(
         "support_pixels": int(support_union.sum()),
         "object_dilated_pixels": object_dilated_pixels,
         "inpaint_pixels": int(inpaint.sum()),
-        "inpaint_region_policy": "instance-union",
+        "foreground_hole_fill_pixels": foreground_hole_pixels,
+        "inpaint_region_policy": "instance-union+enclosed-hole-fill",
         "extra_inpaint_mask": str(inpaint_extra_mask) if inpaint_extra_mask else None,
         "extra_inpaint_mask_sha256": extra_mask_sha256,
     }
@@ -407,6 +423,16 @@ def main() -> int:
             sam3_dir=args.sam3_dir.expanduser().resolve(),
             checkpoint=args.sam3_checkpoint.expanduser().resolve(),
             dry_run=args.dry_run,
+        )
+        recover_sam3_masks(
+            image=args.image,
+            objects=objects,
+            out_dir=sam3d_dir,
+            python=args.sam3_python,
+            sam3_dir=args.sam3_dir.expanduser().resolve(),
+            checkpoint=args.sam3_checkpoint.expanduser().resolve(),
+            dry_run=args.dry_run,
+            run_text=run_sam3,
         )
         if not args.dry_run:
             objects = compact_object_masks(sam3d_dir, objects)

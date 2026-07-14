@@ -116,7 +116,7 @@ def preprocess_cache_valid(scene_dir: Path, args: argparse.Namespace | None = No
         return True
     mask_status = read_json(scene_dir / "mask_status.json")
     actual_policy = mask_status.get("inpaint_region_policy")
-    if actual_policy not in {None, "instance-union"}:
+    if actual_policy not in {None, "instance-union", "instance-union+support-hole-fill", "instance-union+enclosed-hole-fill"}:
         return False
     recorded_dilation = mask_status.get("inpaint_dilation")
     if recorded_dilation is not None and recorded_dilation != args.inpaint_dilation:
@@ -371,29 +371,11 @@ def find_lyra_ply(output_dir: Path) -> Path | None:
     return candidates[0] if candidates else None
 
 
-def write_render_script(scene_dir: Path) -> Path:
-    root = Path(__file__).resolve().parents[2]
-    canonical = root / "scripts" / "render_gravity_aligned_scene.sh"
-    script = scene_dir / "render_gravity_aligned_scene.py"
-    script.write_text(
-        "#!/usr/bin/env python3\n"
-        "import os\n"
-        "import subprocess\n"
-        "import sys\n\n"
-        "env = os.environ.copy()\n"
-        "env.setdefault(\"PY_RENDER\", sys.executable)\n"
-        f"cmd = [\"bash\", {str(canonical)!r}, {str(scene_dir)!r}]\n"
-        "raise SystemExit(subprocess.call(cmd, env=env))\n",
-        encoding="utf-8",
-    )
-    script.chmod(0o755)
-    return canonical
-
 def parse_args() -> argparse.Namespace:
     root = Path(__file__).resolve().parents[2]
     parser = argparse.ArgumentParser(description="Run the automatic layered scene pipeline from one RGB image.")
-    parser.add_argument("--image", type=Path, default=root / "examples" / "image.png")
-    parser.add_argument("--output-dir", type=Path, default=root / "outputs" / "release_demo_2")
+    parser.add_argument("--image", type=Path, default=root / "examples" / "test1.png")
+    parser.add_argument("--output-dir", type=Path, default=root / "outputs" / "automatic")
     parser.add_argument("--objects", help="Comma-separated object prompts. Use this for local debugging when no VLM command is configured.")
     parser.add_argument("--object-file", type=Path)
     parser.add_argument(
@@ -956,7 +938,7 @@ def main() -> int:
         runner.write_report()
         return 0
 
-    canonical_render_script = write_render_script(scene_dir)
+    canonical_render_script = Path(__file__).resolve().parents[2] / "scripts" / "render_gravity_aligned_scene.sh"
     preview_status = scene_dir / "layered_preview_status.json"
     if lyra_cameras.exists():
         if not args.dry_run:
@@ -995,7 +977,6 @@ def main() -> int:
         "gravity_aligned_background": str(gravity_bg),
         "fully_refined_foreground": str(final_fg),
         "render_script": str(canonical_render_script),
-        "scene_render_script": str(scene_dir / "render_gravity_aligned_scene.py"),
         "lyra_exploration_video": str(
             external_video or (lyra_video_dir / "exploration.mp4")
         ),

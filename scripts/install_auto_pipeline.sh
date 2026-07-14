@@ -215,7 +215,7 @@ install_lyra() {
     gcc=13.3.0 gxx=13.3.0 eigen zlib
   run "${CONDA_BIN}" install -y -n "${LYRA_ENV}" -c nvidia/label/cuda-12.8.0 cuda
   pip_install "${LYRA_ENV}" --upgrade pip setuptools wheel
-  pip_install "${LYRA_ENV}" --extra-index-url "${TORCH_CU128_INDEX}" torch==2.7.1 torchvision==0.22.1
+  pip_install "${LYRA_ENV}" --index-url "${TORCH_CU128_INDEX}" torch==2.7.1 torchvision==0.22.1
   build_pip_install "${LYRA_ENV}" --no-deps -r "${ROOT}/third_party/lyra/Lyra-2/requirements.txt"
   build_pip_install "${LYRA_ENV}" "git+https://github.com/microsoft/MoGe.git@07444410f1e33f402353b99d6ccd26bd31e469e8"
   build_pip_install "${LYRA_ENV}" "transformer_engine[pytorch]==2.4.0" --no-build-isolation
@@ -344,7 +344,7 @@ write_auto_env() {
     printf 'LYRA_MAX_FRAMES=0\nLYRA_DA3_MAX_FRAMES=128\nLYRA_MAX_RESOLUTION=0\n'
     printf 'LYRA_GS_DOWN_RATIO=2\nROBOSNAP_MAX_JOBS=1\n\n'
     printf 'SF_REAL2SIM_COLLISION_METHOD=vhacd\n'
-    printf 'SF_REAL2SIM_USE_CACHED_COLLISIONS=0\n'
+    printf 'SF_REAL2SIM_USE_CACHED_COLLISIONS=1\n'
     printf 'SF_REAL2SIM_DISABLE_COLLISION_SPLIT=1\n'
     printf 'SF_REAL2SIM_NUM_ROUNDS=30\nSF_SECOND_PASS_NUM_ROUNDS=30\n'
     printf 'SF_REAL2SIM_SDF_STEPS_PER_ROUND=15\nSF_SECOND_PASS_SDF_STEPS_PER_ROUND=15\n'
@@ -356,7 +356,7 @@ write_auto_env() {
     printf 'SF_REAL2SIM_SDF_WATERTIGHT_METHOD=voxel\n'
     printf 'SF_REAL2SIM_SDF_WATERTIGHT_VOXEL_RESOLUTION=96\n'
     printf 'SF_PROJECTION_MIN_SCALE=0.35\nSF_PROJECTION_MAX_SCALE=1.5\nSF_PROJECTION_MIN_IOU=0.55\n\n'
-    printf 'INPUT_IMAGE=${ROBOSNAP_ROOT}/examples/image.png\n'
+    printf 'INPUT_IMAGE=${ROBOSNAP_ROOT}/examples/test1.png\n'
     printf 'OUTPUT_DIR=${ROBOSNAP_ROOT}/outputs/automatic\n'
     printf 'DEVICE=cuda:0\nCUDA_VISIBLE_DEVICES=\nINPAINT_DILATION=7\n\n'
     printf '# Configure OBJECT_FILE or VLM_COMMAND before running.\n'
