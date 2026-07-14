@@ -145,6 +145,10 @@ Render an existing result with `bash scripts/render_gravity_aligned_scene.sh`.
 
 See [docs/automatic_pipeline_setup.md](docs/automatic_pipeline_setup.md) for model downloads and environment overrides.
 
+<p align="center">
+  <img src="assets/example.png" alt="RoboSnap automatic pipeline examples" width="1000">
+</p>
+
 ## GUI
 
 The pipeline of our GUI tool includes:
