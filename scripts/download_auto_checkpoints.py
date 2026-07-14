@@ -34,7 +34,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--copy", action="store_true", help="Copy snapshot trees instead of linking them.")
     parser.add_argument("--force", action="store_true", help="Replace an existing model link or directory.")
-    parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
 
@@ -68,8 +67,6 @@ def materialize_tree(source: Path, destination: Path, *, copy: bool, force: bool
 
 def download_file(repo_id: str, filename: str, destination: Path, cache_dir: Path, args: argparse.Namespace) -> None:
     print(f"[models] {repo_id}/{filename} -> {destination}")
-    if args.dry_run:
-        return
     if destination.is_file() and not args.force:
         print(f"[models] keep existing {destination}")
         return
@@ -97,12 +94,10 @@ def download_snapshot(
     args: argparse.Namespace,
     *,
     allow_patterns: list[str] | None = None,
-) -> Path | None:
+) -> Path:
     print(f"[models] snapshot {repo_id} -> cache {cache_dir}")
     if allow_patterns:
         print(f"[models] allow_patterns={','.join(allow_patterns)}")
-    if args.dry_run:
-        return None
     _, snapshot_download = get_hf_api()
     return Path(
         snapshot_download(
@@ -128,9 +123,8 @@ def main() -> int:
     cache_dir = args.cache_dir.expanduser().resolve()
     print(f"[models] checkpoint_dir={checkpoint_dir}")
     print(f"[models] cache_dir={cache_dir}")
-    if not args.dry_run:
-        checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        cache_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
     if args.sam3:
         download_file(
@@ -148,19 +142,18 @@ def main() -> int:
             args,
             allow_patterns=["checkpoints/**"],
         )
-        if snapshot is not None:
-            source = snapshot / "checkpoints"
-            if not (source / "pipeline.yaml").is_file():
-                raise RuntimeError(f"SAM3D snapshot is missing checkpoints/pipeline.yaml: {snapshot}")
-            destination = checkpoint_dir / "sam-3d-objects"
-            materialize_tree(
-                source,
-                destination,
-                copy=args.copy,
-                force=args.force,
-            )
-            if not (destination / "pipeline.yaml").is_file():
-                raise RuntimeError(f"Existing SAM3D destination is incomplete: {destination}")
+        source = snapshot / "checkpoints"
+        if not (source / "pipeline.yaml").is_file():
+            raise RuntimeError(f"SAM3D snapshot is missing checkpoints/pipeline.yaml: {snapshot}")
+        destination = checkpoint_dir / "sam-3d-objects"
+        materialize_tree(
+            source,
+            destination,
+            copy=args.copy,
+            force=args.force,
+        )
+        if not (destination / "pipeline.yaml").is_file():
+            raise RuntimeError(f"Existing SAM3D destination is incomplete: {destination}")
 
     if args.vggt:
         download_snapshot("facebook/VGGT-1B", cache_dir, args)
@@ -173,19 +166,18 @@ def main() -> int:
             args,
             allow_patterns=["checkpoints/**"],
         )
-        if snapshot is not None:
-            source = snapshot / "checkpoints"
-            if not (source / "recon" / "model.pt").is_file():
-                raise RuntimeError(f"Lyra snapshot is missing checkpoints/recon/model.pt: {snapshot}")
-            destination = checkpoint_dir / "lyra2" / "checkpoints"
-            materialize_tree(
-                source,
-                destination,
-                copy=args.copy,
-                force=args.force,
-            )
-            if not (destination / "recon" / "model.pt").is_file():
-                raise RuntimeError(f"Existing Lyra destination is incomplete: {destination}")
+        source = snapshot / "checkpoints"
+        if not (source / "recon" / "model.pt").is_file():
+            raise RuntimeError(f"Lyra snapshot is missing checkpoints/recon/model.pt: {snapshot}")
+        destination = checkpoint_dir / "lyra2" / "checkpoints"
+        materialize_tree(
+            source,
+            destination,
+            copy=args.copy,
+            force=args.force,
+        )
+        if not (destination / "recon" / "model.pt").is_file():
+            raise RuntimeError(f"Existing Lyra destination is incomplete: {destination}")
 
     print("[models] done")
     return 0

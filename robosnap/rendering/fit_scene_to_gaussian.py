@@ -119,7 +119,6 @@ def parse_args():
     parser.add_argument("--crop-percent", type=float, default=1.0, help="Robust percentile crop for background bounds.")
     parser.add_argument("--scale-mode", choices=["median", "min", "max"], default="median")
     parser.add_argument("--scale-multiplier", type=float, default=1.0)
-    parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
 
@@ -173,8 +172,6 @@ def main() -> int:
         "background_bounds": {"min": bg_lo.tolist(), "max": bg_hi.tolist()},
     }
     print(json.dumps(meta, indent=2))
-    if args.dry_run:
-        return 0
     args.output_scene.parent.mkdir(parents=True, exist_ok=True)
     scene.export(str(args.output_scene))
     transform_path = args.transform_json or args.output_scene.with_suffix(".transform.json")

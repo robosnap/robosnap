@@ -7,6 +7,10 @@ data/
 !third_party/sam-3d-objects/sam3d_objects/data/
 !third_party/sam-3d-objects/sam3d_objects/data/**/*.py
 *.log
+*.bak
+*.backup
+*.tmp
+*~
 
 # Local env files
 configs/gui.env
@@ -32,17 +36,30 @@ staging/
 tmp/
 dist/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 robosnap/gui/RoboSnapGUI copy/
 
-# Dataset payloads are released separately; source modules stay trackable.
+# Dataset release is maintained separately.
 robosnap/datasets/
-# Non-GUI third-party snapshots staged for later releases
+# Fetched or non-release third-party checkouts.
 third_party/DiffusionLight/
 third_party/FoundationPose/
 third_party/vggt/
 third_party/lyra/
 third_party/vipe/
 third_party/Grounded-SAM-2/
+# Upstream demos, evaluation assets, notebooks, and duplicate dependency sources.
+third_party/sam3/assets/
+third_party/sam3/scripts/
+third_party/sam-3d-objects/doc/
+third_party/sam-3d-objects/notebook/
+third_party/sam-3d-objects/kaolin/
+third_party/sam-3d-objects/mip-splatting/
+third_party/Hunyuan3D-Part/P3-SAM/demo/assets/
+third_party/Hunyuan3D-Part/P3-SAM/images/
 # Small checked-in GUI demo input
 !examples/video.mp4
 
@@ -62,7 +79,3 @@ wandb/
 
 # Local automatic-pipeline debug artifacts
 feedback.md
-configs/release_demo_2_objects.txt
-scripts/make_mask_contact.py
-scripts/merge_release_demo_2_masks.py
-scripts/report_masks.py

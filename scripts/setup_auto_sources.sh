@@ -8,7 +8,6 @@ VGGT_URL="${VGGT_URL:-https://github.com/facebookresearch/vggt.git}"
 LYRA_URL="${LYRA_URL:-https://github.com/nv-tlabs/lyra.git}"
 VGGT_COMMIT="${VGGT_COMMIT:-a288dd0f14786c93483e45524328726ab7b1b4ce}"
 LYRA_COMMIT="${LYRA_COMMIT:-87f79a52b81b366d1d4aa3a526aa12e54207c998}"
-DRY_RUN="${DRY_RUN:-0}"
 SETUP_VGGT=1
 SETUP_LYRA=1
 
@@ -19,7 +18,6 @@ Usage: bash scripts/setup_auto_sources.sh [options]
 Fetch the pinned VGGT and Lyra source trees used by the automatic pipeline.
 
 Options:
-  --dry-run       Print commands without executing them.
   --skip-vggt     Do not fetch VGGT.
   --skip-lyra     Do not fetch or patch Lyra.
   -h, --help      Show this help.
@@ -28,7 +26,6 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dry-run) DRY_RUN=1 ;;
     --skip-vggt) SETUP_VGGT=0 ;;
     --skip-lyra) SETUP_LYRA=0 ;;
     -h|--help) usage; exit 0 ;;
@@ -45,9 +42,7 @@ run() {
   printf '[sources]'
   printf ' %q' "$@"
   printf '\n'
-  if [[ "${DRY_RUN}" != "1" ]]; then
-    "$@"
-  fi
+  "$@"
 }
 
 fetch_source() {
@@ -85,7 +80,7 @@ fetch_source() {
   if [[ "${recursive}" == "1" ]]; then
     run git -C "${target}" submodule update --init --recursive --depth 1
   fi
-  if [[ "${DRY_RUN}" != "1" && ! -e "${target}/${marker}" ]]; then
+  if [[ ! -e "${target}/${marker}" ]]; then
     echo "${name} checkout is missing ${marker}: ${target}" >&2
     exit 1
   fi
@@ -98,14 +93,10 @@ apply_lyra_patch() {
     echo "Missing Lyra compatibility patch: ${patch_file}" >&2
     exit 1
   fi
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    log "patch --batch --forward -p1 < ${patch_file} (cwd=${lyra2})"
-    return 0
-  fi
-  if (cd "${lyra2}" && patch --dry-run --batch --forward -p1 < "${patch_file}" >/dev/null 2>&1); then
+  if git -C "${lyra2}" apply --check "${patch_file}"; then
     log "applying Lyra 4090/offload compatibility patch"
-    (cd "${lyra2}" && patch --batch --forward -p1 < "${patch_file}")
-  elif (cd "${lyra2}" && patch --dry-run --batch --reverse -p1 < "${patch_file}" >/dev/null 2>&1); then
+    git -C "${lyra2}" apply "${patch_file}"
+  elif git -C "${lyra2}" apply --reverse --check "${patch_file}"; then
     log "Lyra compatibility patch is already applied"
   else
     echo "Lyra compatibility patch does not match ${lyra2}" >&2
@@ -117,11 +108,6 @@ if ! command -v git >/dev/null 2>&1; then
   echo "git is required." >&2
   exit 127
 fi
-if [[ "${SETUP_LYRA}" == "1" ]] && ! command -v patch >/dev/null 2>&1; then
-  echo "patch is required for the Lyra compatibility patch." >&2
-  exit 127
-fi
-
 if [[ "${SETUP_VGGT}" == "1" ]]; then
   fetch_source "VGGT" "${VGGT_URL}" "${VGGT_COMMIT}" "${VGGT_DIR}" "vggt/models/vggt.py" 0
 fi

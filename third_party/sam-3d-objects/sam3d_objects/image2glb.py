@@ -6,14 +6,12 @@ import json
 from pathlib import Path
 import numpy as np
 
-# import inference code
+# Import inference code.
 _SAM3D_ROOT = Path(__file__).resolve().parents[1]
-_NOTEBOOK_DIR = _SAM3D_ROOT / "notebook"
-for _path in (_SAM3D_ROOT, _NOTEBOOK_DIR):
-    _path_str = str(_path)
-    if _path_str not in sys.path:
-        sys.path.insert(0, _path_str)
-from inference import Inference, load_image, load_single_mask
+_sam3d_root_str = str(_SAM3D_ROOT)
+if _sam3d_root_str not in sys.path:
+    sys.path.insert(0, _sam3d_root_str)
+from sam3d_objects.inference import Inference, load_image, load_single_mask
 from sam3d_objects.model.backbone.tdfy_dit.utils import postprocessing_utils
 
 

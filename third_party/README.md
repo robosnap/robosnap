@@ -1,28 +1,31 @@
 # Third-party Layout
 
-RoboSnap keeps modified third-party code under `third_party/` instead of expecting users to clone upstream repositories by hand.
+RoboSnap keeps adapted GUI dependencies under `third_party/`. The automatic-pipeline installer fetches its larger pinned sources.
 
-Current GUI release layout:
+Release layout:
 
 ```text
 third_party/
   sam3/                         # modified SAM3 source snapshot
   sam-3d-objects/               # modified SAM3D source snapshot
   Hunyuan3D-Part/               # contains P3-SAM and XPart/partgen
+  vggt/                         # fetched by scripts/setup_auto_sources.sh
+  lyra/                         # fetched and patched by scripts/setup_auto_sources.sh
 ```
 
-Local staged snapshots for later releases may also exist here, but they are git-ignored for the GUI-first release: DiffusionLight, FoundationPose, vggt, lyra, vipe, and Grounded-SAM-2.
+VGGT and Lyra are git-ignored source checkouts. Their URLs and commits are fixed in `scripts/setup_auto_sources.sh`; model weights stay under `checkpoints/`.
+Upstream demo media, evaluation data, notebooks, and duplicate Kaolin/mip-splatting source trees are omitted from the release snapshot. Runtime dependencies are installed by the environment scripts.
 
 Policy for release:
 
 - Keep the upstream license files inside each vendored third-party directory.
 - Record upstream URL, commit/tag, local source path, and local modifications in `manifest.yaml`.
 - Do not commit checkpoints or model weights. Put them under `checkpoints/` and document download commands.
-- For heavily modified repos such as SAM3 and SAM3D, release a modified source snapshot or a fork/submodule pinned to the exact commit. Do not ask users to clone the original repo and manually rediscover local changes.
+- Keep local compatibility changes as tracked patches or in the adapted source snapshot.
 
 ## Release entrypoints
 
-Use the RoboSnap wrappers under `robosnap/` for pipeline execution. Some vendored demos, notebooks, and tests are kept as source context and are not release entrypoints. Do not prune those source folders without confirming first.
+Use the RoboSnap wrappers under `robosnap/` for pipeline execution. Vendored demo media, notebooks, evaluation data, and duplicate dependency sources are intentionally excluded.
 
 ## License audit
 
@@ -34,4 +37,4 @@ python3 scripts/gui/python/audit_third_party_licenses.py --fail-on-missing
 python3 scripts/gui/python/audit_third_party_licenses.py --all-components
 ```
 
-The first command reports the GUI release state without blocking validation. The second command is the final GUI-release mode. The `--all-components` command is for staged dependencies that are not part of the first public GUI release. If it reports a vendored component without a visible `LICENSE`, `COPYING`, `NOTICE`, or `AUTHORS` file, resolve that manually before public release.
+Run `--all-components` after `scripts/setup_auto_sources.sh` has fetched VGGT and Lyra.

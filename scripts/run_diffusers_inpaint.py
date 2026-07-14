@@ -19,8 +19,8 @@ from PIL import Image, ImageFilter
 
 
 DEFAULT_NEGATIVE = (
-    "people, person, human, desk, table, monitor, laptop, computer, cable, "
-    "charger, bottle, tissue pack, backpack, box, text, logo, watermark, "
+    "foreground objects, interactive objects, support furniture, people, "
+    "text, logo, watermark, "
     "distorted geometry, warped lines, blurry, low quality, artifacts"
 )
 
@@ -30,6 +30,11 @@ def parse_size(value: str) -> tuple[int, int]:
         raise argparse.ArgumentTypeError("size must be WIDTHxHEIGHT")
     width, height = value.lower().split("x", 1)
     return int(width), int(height)
+
+
+def fit_size(size: tuple[int, int], max_side: int = 1024) -> tuple[int, int]:
+    scale = min(1.0, max_side / max(size))
+    return tuple(max(8, int(round(value * scale / 8)) * 8) for value in size)
 
 
 def load_prompt(path_or_text: str) -> str:
@@ -47,6 +52,15 @@ def composite_original(original: Image.Image, generated: Image.Image, mask: Imag
     return Image.composite(generated.convert("RGB"), original.convert("RGB"), mask_l)
 
 
+def prepare_mask(mask: Image.Image, blur: float) -> Image.Image:
+    binary = mask.convert("L").point(lambda value: 255 if value > 0 else 0)
+    if blur <= 0:
+        return binary
+    alpha = np.asarray(binary.filter(ImageFilter.GaussianBlur(blur))).copy()
+    alpha[np.asarray(binary) == 0] = 0
+    return Image.fromarray(alpha)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", type=Path, required=True)
@@ -55,8 +69,12 @@ def main() -> int:
     parser.add_argument("--prompt", required=True, help="Prompt text or path to a prompt file.")
     parser.add_argument("--negative-prompt", default=DEFAULT_NEGATIVE)
     parser.add_argument("--model", default="diffusers/stable-diffusion-xl-1.0-inpainting-0.1")
-    parser.add_argument("--cache-dir", type=Path, default=Path("/cpfs/shared/aigc/zhangshujie/hf_cache"))
-    parser.add_argument("--size", type=parse_size, default=(1024, 576))
+    parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=Path(os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface")),
+    )
+    parser.add_argument("--size", type=parse_size, help="Optional WIDTHxHEIGHT override.")
     parser.add_argument("--steps", type=int, default=35)
     parser.add_argument("--guidance-scale", type=float, default=7.5)
     parser.add_argument("--strength", type=float, default=0.98)
@@ -80,15 +98,17 @@ def main() -> int:
 
     prompt = load_prompt(args.prompt)
     image = Image.open(args.image).convert("RGB")
-    mask = Image.open(args.mask).convert("L")
-    if args.mask_blur > 0:
-        mask = mask.filter(ImageFilter.GaussianBlur(args.mask_blur))
+    binary = Image.open(args.mask).convert("L").point(lambda value: 255 if value > 0 else 0)
+    mask = prepare_mask(binary, args.mask_blur)
 
-    target_w, target_h = args.size
+    target_w, target_h = args.size or fit_size(image.size)
     image_small = image.resize((target_w, target_h), Image.Resampling.LANCZOS)
     mask_small = mask.resize((target_w, target_h), Image.Resampling.NEAREST)
 
-    dtype = torch.float16 if args.device.startswith("cuda") and torch.cuda.is_available() else torch.float32
+    device = args.device
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        device = "cpu"
+    dtype = torch.float16 if device.startswith("cuda") else torch.float32
     load_kwargs = {
         "torch_dtype": dtype,
         "cache_dir": str(args.cache_dir),
@@ -106,13 +126,13 @@ def main() -> int:
             raise
         load_kwargs.pop("variant")
         pipe = AutoPipelineForInpainting.from_pretrained(args.model, **load_kwargs)
-    pipe = pipe.to(args.device)
+    pipe = pipe.to(device)
     if hasattr(pipe, "enable_attention_slicing"):
         pipe.enable_attention_slicing()
     if hasattr(pipe, "enable_vae_slicing"):
         pipe.enable_vae_slicing()
 
-    generator = torch.Generator(device=args.device).manual_seed(args.seed)
+    generator = torch.Generator(device=device).manual_seed(args.seed)
     result = pipe(
         prompt=prompt,
         negative_prompt=args.negative_prompt,
@@ -145,8 +165,11 @@ def main() -> int:
         "guidance_scale": args.guidance_scale,
         "strength": args.strength,
         "seed": args.seed,
-        "masked_pixels": int((np.asarray(mask) > 0).sum()),
+        "requested_device": args.device,
+        "device": device,
+        "masked_pixels": int((np.asarray(binary) > 0).sum()),
     }
+    status_path.parent.mkdir(parents=True, exist_ok=True)
     status_path.write_text(json.dumps(status, indent=2), encoding="utf-8")
     print(json.dumps(status, indent=2))
     return 0

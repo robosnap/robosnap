@@ -23,7 +23,6 @@ LOCAL_ARTICULATE_CKPT="${LOCAL_ARTICULATE_CKPT:-${LOCAL_P3SAM_CKPT:-}}"
 LOCAL_SONATA_CKPT="${LOCAL_SONATA_CKPT:-}"
 LOCAL_MOGE_CACHE="${LOCAL_MOGE_CACHE:-${LOCAL_HF_CACHE:+${LOCAL_HF_CACHE}/models--Ruicheng--moge-vitl}}"
 MATERIALIZE_MODE="${MATERIALIZE_MODE:-copy}"
-DRY_RUN="${DRY_RUN:-0}"
 
 usage() {
   cat <<EOF
@@ -72,9 +71,7 @@ require_dir() {
 
 run_cmd() {
   log "$*"
-  if [ "$DRY_RUN" = "0" ]; then
-    "$@"
-  fi
+  "$@"
 }
 
 copy_file() {
@@ -90,11 +87,7 @@ copy_file() {
       run_cmd cp -a --reflink=auto "$src" "$dst"
       ;;
     hardlink)
-      if [ "$DRY_RUN" = "0" ]; then
-        ln -f "$src" "$dst" 2>/dev/null || cp -a "$src" "$dst"
-      else
-        log "ln -f $src $dst  # fallback: cp -a"
-      fi
+      ln -f "$src" "$dst" 2>/dev/null || cp -a "$src" "$dst"
       ;;
     symlink)
       run_cmd ln -sfn "$src" "$dst"
@@ -119,11 +112,7 @@ copy_dir_contents() {
       ;;
     hardlink)
       run_cmd mkdir -p "$dst"
-      if [ "$DRY_RUN" = "0" ]; then
-        cp -al "$src/." "$dst/" 2>/dev/null || cp -a "$src/." "$dst/"
-      else
-        log "cp -al $src/. $dst/  # fallback: cp -a"
-      fi
+      cp -al "$src/." "$dst/" 2>/dev/null || cp -a "$src/." "$dst/"
       ;;
     symlink)
       run_cmd mkdir -p "$(dirname "$dst")"

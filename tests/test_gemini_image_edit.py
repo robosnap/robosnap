@@ -46,6 +46,7 @@ def test_request_contains_source_masked_scene_and_binary_mask(tmp_path) -> None:
     assert np.array_equal(masked_scene[0, 0], source[0, 0])
     assert np.all(binary[1:3, 2:5] == 255)
     assert "not a strict edit boundary" in payload["input"][0]["text"]
+    assert payload["store"] is False
 
 
 def test_semantic_output_can_change_pixels_outside_mask(tmp_path) -> None:
@@ -67,3 +68,27 @@ def test_semantic_output_can_change_pixels_outside_mask(tmp_path) -> None:
     assert np.all(semantic == (0, 0, 255))
     assert np.all(strict[:, :2] == (255, 0, 0))
     assert np.all(strict[:, 2:4] == (0, 0, 255))
+
+
+def test_extract_image_bytes_from_interactions_rest_steps() -> None:
+    expected = png_bytes(Image.new("RGB", (3, 2), (12, 34, 56)))
+    response = {
+        "steps": [
+            {
+                "type": "model_output",
+                "content": [
+                    {"type": "text", "text": "done"},
+                    {
+                        "type": "image",
+                        "mime_type": "image/png",
+                        "data": base64.b64encode(expected).decode("ascii"),
+                    },
+                ],
+            }
+        ]
+    }
+
+    data, mime_type = gemini.extract_image_bytes(response)
+
+    assert data == expected
+    assert mime_type == "image/png"

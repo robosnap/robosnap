@@ -111,7 +111,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-vipe", action="store_true", default=os.environ.get("LYRA_NO_VIPE", "0") == "1")
     parser.add_argument("--vipe", dest="no_vipe", action="store_false")
     parser.add_argument("--require-render", action="store_true")
-    parser.add_argument("--dry-run", action="store_true", help="Print command without running the heavy model.")
     return parser.parse_args()
 
 
@@ -164,8 +163,6 @@ def main() -> int:
     print("[INFO] Running Lyra-2 GS reconstruction:")
     print(" ".join(cmd))
     print(f"[INFO] cwd={lyra2_dir}")
-    if args.dry_run:
-        return 0
     ply_path = args.output_dir / "reconstructed_scene.ply" if args.output_dir else None
     before_ply = None
     if ply_path and ply_path.exists():

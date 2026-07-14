@@ -13,24 +13,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import numpy as np
-from PIL import Image
-
-from robosnap.refinement.gravity_align_scene import paste_original_mask_to_vggt
-
-
-STAGES = [
-    "preprocess",
-    "sam3d",
-    "vggt",
-    "icp",
-    "background",
-    "gravity",
-    "refinement",
-    "preview",
-]
-
-
 def quote_cmd(cmd: list[str]) -> str:
     return " ".join(shlex.quote(str(part)) for part in cmd)
 
@@ -224,27 +206,6 @@ def write_cache_manifest(path: Path, input_fingerprint: str, **metadata: object)
     )
 
 
-def write_ascii_ply(path: Path, points: np.ndarray, colors: np.ndarray | None = None) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    points = np.asarray(points, dtype=np.float64).reshape(-1, 3)
-    if colors is None:
-        colors = np.full((len(points), 3), 180, dtype=np.uint8)
-    else:
-        colors = np.asarray(colors)
-        if colors.max(initial=0) <= 1:
-            colors = (colors * 255.0).clip(0, 255)
-        colors = colors.astype(np.uint8).reshape(-1, 3)
-    with path.open("w", encoding="ascii") as f:
-        f.write("ply\n")
-        f.write("format ascii 1.0\n")
-        f.write(f"element vertex {len(points)}\n")
-        f.write("property float x\nproperty float y\nproperty float z\n")
-        f.write("property uchar red\nproperty uchar green\nproperty uchar blue\n")
-        f.write("end_header\n")
-        for p, c in zip(points, colors):
-            f.write(f"{p[0]:.10g} {p[1]:.10g} {p[2]:.10g} {int(c[0])} {int(c[1])} {int(c[2])}\n")
-
-
 class Runner:
     def __init__(self, args: argparse.Namespace):
         self.args = args
@@ -270,18 +231,12 @@ class Runner:
         with self.feedback_path.open("a", encoding="utf-8") as f:
             f.write(f"\n## {stage}\n\n{message.strip()}\n")
 
-    def should_stop_after(self, stage: str) -> bool:
-        return self.args.stop_after == stage
-
-    def run(self, stage: str, cmd: list[str], *, cwd: Path | None = None, allow_failure: bool = False) -> int:
+    def run(self, stage: str, cmd: list[str], *, cwd: Path | None = None) -> int:
         cmd = [str(part) for part in cmd]
         line = f"\n[{stage}] {quote_cmd(cmd)}\n"
         print(line.strip())
         with self.log_path.open("a", encoding="utf-8") as log:
             log.write(line)
-            if self.args.dry_run:
-                self.report["stages"].append({"stage": stage, "cmd": cmd, "returncode": 0, "dry_run": True})
-                return 0
             env = self.env()
             executable = Path(cmd[0]).expanduser()
             if executable.is_absolute():
@@ -299,8 +254,7 @@ class Runner:
         if proc.returncode != 0:
             message = f"Command failed with code {proc.returncode}: `{quote_cmd(cmd)}`. See `{self.log_path}`."
             self.note(stage, message)
-            if not allow_failure:
-                raise RuntimeError(message)
+            raise RuntimeError(message)
         return proc.returncode
 
     def write_report(self) -> None:
@@ -330,39 +284,6 @@ def copy_depth_outputs(vggt_dir: Path, depth_dir: Path) -> None:
             shutil.copy2(src, depth_dir / name)
 
 
-def create_background_fallback(scene_dir: Path, vggt_dir: Path, foreground_mask: Path, output_ply: Path, max_points: int, seed: int) -> dict:
-    points_world = np.load(vggt_dir / "points_world.npy")
-    content_mask = np.load(vggt_dir / "content_mask.npy").astype(bool)
-    camera = json.loads((vggt_dir / "camera.json").read_text(encoding="utf-8"))
-    image_pre = np.asarray(Image.open(vggt_dir / "image_preprocessed.png").convert("RGB"))
-    valid = content_mask & np.isfinite(points_world).all(axis=2)
-    if foreground_mask.exists():
-        mask_orig = Image.open(foreground_mask).convert("RGBA")
-        alpha = np.asarray(mask_orig)[:, :, 3] > 0
-        mask_pre = paste_original_mask_to_vggt(
-            alpha,
-            camera["preprocess_transform_original_to_preprocessed"],
-            tuple(camera["preprocessed_size_hw"]),
-        )
-        valid &= ~mask_pre
-    points = points_world[valid].astype(np.float64)
-    colors = image_pre[valid].astype(np.uint8)
-    if len(points) > max_points:
-        rng = np.random.default_rng(seed)
-        keep = rng.choice(len(points), size=max_points, replace=False)
-        points = points[keep]
-        colors = colors[keep]
-    write_ascii_ply(output_ply, points, colors)
-    status = {
-        "status": "vggt_fallback",
-        "reason": "Lyra background reconstruction was not available or not requested; background.ply was built from VGGT points outside the foreground mask.",
-        "points": int(len(points)),
-        "output_ply": str(output_ply),
-    }
-    (scene_dir / "background_status.json").write_text(json.dumps(status, indent=2), encoding="utf-8")
-    return status
-
-
 def find_lyra_ply(output_dir: Path) -> Path | None:
     preferred = output_dir / "reconstructed_scene.ply"
     if preferred.exists():
@@ -376,7 +297,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the automatic layered scene pipeline from one RGB image.")
     parser.add_argument("--image", type=Path, default=root / "examples" / "test1.png")
     parser.add_argument("--output-dir", type=Path, default=root / "outputs" / "automatic")
-    parser.add_argument("--objects", help="Comma-separated object prompts. Use this for local debugging when no VLM command is configured.")
+    parser.add_argument("--objects", help="Comma-separated object prompts used instead of VLM discovery.")
     parser.add_argument("--object-file", type=Path)
     parser.add_argument(
         "--vlm-command",
@@ -434,13 +355,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default=os.environ.get("ROBOSNAP_DEVICE", "cuda:0"))
     parser.add_argument("--cuda-visible-devices", default=os.environ.get("CUDA_VISIBLE_DEVICES"))
     parser.add_argument("--max-vggt-points", type=int, default=300000)
-    parser.add_argument("--max-background-points", type=int, default=400000)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--skip-existing", action="store_true")
-    parser.add_argument("--skip-sam3", action="store_true")
-    parser.add_argument("--skip-lyra", action="store_true")
-    parser.add_argument("--stop-after", choices=STAGES)
-    parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
 
@@ -482,10 +398,6 @@ def main() -> int:
     preprocess_cmd.extend(["--inpaint-dilation", str(args.inpaint_dilation)])
     if args.inpaint_extra_mask:
         preprocess_cmd.extend(["--inpaint-extra-mask", str(args.inpaint_extra_mask)])
-    if args.skip_sam3:
-        preprocess_cmd.append("--skip-sam3")
-    if args.dry_run:
-        preprocess_cmd.append("--dry-run")
     scene_image_before = scene_dir / "image.png"
     image_unchanged = (
         scene_image_before.exists()
@@ -494,11 +406,12 @@ def main() -> int:
     )
     requested_prompts = requested_object_prompts(args)
     prompts_unchanged = requested_prompts is None or requested_prompts == parse_objects(scene_dir / "object.txt")
+    uses_vlm = bool(args.vlm_command and not args.objects and not args.object_file)
     preprocess_done = (
         preprocess_cache_valid(scene_dir, args)
         and image_unchanged
         and prompts_unchanged
-        and not args.vlm_command
+        and not uses_vlm
     )
     reuse_preprocess = args.skip_existing and preprocess_done
     if reuse_preprocess:
@@ -507,10 +420,6 @@ def main() -> int:
         )
     else:
         runner.run("preprocess", preprocess_cmd)
-    if runner.should_stop_after("preprocess"):
-        runner.write_report()
-        return 0
-
     object_prompts = parse_objects(scene_dir / "object.txt")
     if not object_prompts:
         raise RuntimeError(f"No object prompts found in {scene_dir / 'object.txt'}")
@@ -542,16 +451,15 @@ def main() -> int:
             "--compose_scene",
         ]
         runner.run("sam3d", sam3d_cmd, cwd=args.sam3d_dir)
-        if not args.dry_run:
-            if not sam3d_outputs_valid(sam3d_mask_dir, len(object_prompts)):
-                raise RuntimeError(f"SAM3D did not produce all {len(object_prompts)} object meshes in {sam3d_mask_dir}")
-            write_cache_manifest(
-                sam3d_manifest,
-                sam3d_fingerprint,
-                status="complete",
-                object_count=len(object_prompts),
-                objects=object_prompts,
-            )
+        if not sam3d_outputs_valid(sam3d_mask_dir, len(object_prompts)):
+            raise RuntimeError(f"SAM3D did not produce all {len(object_prompts)} object meshes in {sam3d_mask_dir}")
+        write_cache_manifest(
+            sam3d_manifest,
+            sam3d_fingerprint,
+            status="complete",
+            object_count=len(object_prompts),
+            objects=object_prompts,
+        )
     else:
         runner.report["stages"].append({"stage": "sam3d", "skipped": "matching input manifest"})
 
@@ -567,10 +475,6 @@ def main() -> int:
     if not reuse_sam3d:
         prepare_cmd.append("--overwrite")
     runner.run("sam3d", prepare_cmd)
-    if runner.should_stop_after("sam3d"):
-        runner.write_report()
-        return 0
-
     vggt_dir = scene_dir / "sam3d+fpose" / "vggt_single_image"
     if not (args.skip_existing and image_unchanged and (vggt_dir / "camera.json").exists()):
         vggt_cmd = [
@@ -596,10 +500,6 @@ def main() -> int:
     else:
         runner.report["stages"].append({"stage": "vggt", "skipped": "existing camera.json"})
     copy_depth_outputs(vggt_dir, scene_dir / "depth")
-    if runner.should_stop_after("vggt"):
-        runner.write_report()
-        return 0
-
     refined_scene = scene_dir / "refined_scene.glb"
     icp_dir = scene_dir / "depth" / "object_point_clouds"
     icp_manifest = icp_dir / "cache_manifest.json"
@@ -628,26 +528,21 @@ def main() -> int:
             str(args.seed),
         ]
         runner.run("icp", icp_cmd)
-        if not args.dry_run:
-            if not icp_outputs_valid(scene_dir, len(object_prompts)):
-                raise RuntimeError("ICP did not produce a complete refined scene and report")
-            icp_report = read_json(icp_dir / "icp_report.json")
-            accepted = [obj["object_id"] for obj in icp_report["objects"] if obj.get("icp_accepted")]
-            rejected = [obj["object_id"] for obj in icp_report["objects"] if not obj.get("icp_accepted")]
-            write_cache_manifest(
-                icp_manifest,
-                icp_fingerprint,
-                status="complete",
-                object_count=len(object_prompts),
-                accepted_object_ids=accepted,
-                rejected_object_ids=rejected,
-            )
+        if not icp_outputs_valid(scene_dir, len(object_prompts)):
+            raise RuntimeError("ICP did not produce a complete refined scene and report")
+        icp_report = read_json(icp_dir / "icp_report.json")
+        accepted = [obj["object_id"] for obj in icp_report["objects"] if obj.get("icp_accepted")]
+        rejected = [obj["object_id"] for obj in icp_report["objects"] if not obj.get("icp_accepted")]
+        write_cache_manifest(
+            icp_manifest,
+            icp_fingerprint,
+            status="complete",
+            object_count=len(object_prompts),
+            accepted_object_ids=accepted,
+            rejected_object_ids=rejected,
+        )
     else:
         runner.report["stages"].append({"stage": "icp", "skipped": "matching input manifest"})
-    if runner.should_stop_after("icp"):
-        runner.write_report()
-        return 0
-
     background_ply = scene_dir / "background.ply"
     complete_background = scene_dir / "complete_background.png"
     if not complete_background.exists():
@@ -683,36 +578,20 @@ def main() -> int:
     video_fingerprint = fingerprint_files(fingerprint_inputs, video_metadata)
     background_metadata = {**video_metadata, "recon_da3_max_frames": args.lyra_recon_da3_max_frames}
     background_fingerprint = fingerprint_files(fingerprint_inputs, background_metadata)
-    expected_background_status = "vggt_fallback" if args.skip_lyra else "lyra2_video_da3_gs"
     background_ready = (
         args.skip_existing
         and background_ply.exists()
-        and (args.skip_lyra or (lyra_cameras.is_file() and lyra_trajectory.is_file()))
+        and lyra_cameras.is_file()
+        and lyra_trajectory.is_file()
         and cache_manifest_valid(
             background_manifest,
             background_fingerprint,
-            expected_status=expected_background_status,
+            expected_status="lyra2_video_da3_gs",
         )
     )
     lyra_video: Path | None = external_video
     if background_ready:
         runner.report["stages"].append({"stage": "background", "skipped": "matching input manifest"})
-    elif args.skip_lyra:
-        fallback_status = create_background_fallback(
-            scene_dir,
-            vggt_dir,
-            scene_dir / "foreground_mask.png",
-            background_ply,
-            args.max_background_points,
-            args.seed,
-        )
-        write_cache_manifest(
-            background_manifest,
-            background_fingerprint,
-            status=fallback_status["status"],
-            output_ply=str(background_ply),
-        )
-        background_ready = True
     else:
         if not (lyra2_dir / "lyra_2" / "_src" / "inference" / "lyra2_zoomgs_inference.py").is_file():
             raise FileNotFoundError(f"Lyra-2 source is unavailable: {lyra2_dir}")
@@ -770,15 +649,14 @@ def main() -> int:
                         ["--no-offload", "--no-offload-when-prompt", "--no-offload-da3-diffusion"]
                     )
                 runner.run("background_video", video_cmd)
-                if not args.dry_run:
-                    if not lyra_video.is_file() or lyra_video.stat().st_size == 0:
-                        raise RuntimeError(f"Lyra-2 Step 1 did not produce {lyra_video}")
-                    write_cache_manifest(
-                        lyra_video_manifest,
-                        video_fingerprint,
-                        status="lyra2_video",
-                        output_video=str(lyra_video),
-                    )
+                if not lyra_video.is_file() or lyra_video.stat().st_size == 0:
+                    raise RuntimeError(f"Lyra-2 Step 1 did not produce {lyra_video}")
+                write_cache_manifest(
+                    lyra_video_manifest,
+                    video_fingerprint,
+                    status="lyra2_video",
+                    output_video=str(lyra_video),
+                )
 
         args.lyra_checkpoint_dir.mkdir(parents=True, exist_ok=True)
         lyra_cmd = [
@@ -811,46 +689,43 @@ def main() -> int:
             stat = candidate_before.stat()
             candidate_before_state = (str(candidate_before), stat.st_mtime_ns, stat.st_size)
         runner.run("background", lyra_cmd)
-        if args.dry_run:
-            background_ready = True
-        else:
-            candidate = find_lyra_ply(lyra_output)
-            cameras_path = lyra_cameras
-            trajectory_path = lyra_trajectory
-            candidate_updated = False
-            if candidate:
-                stat = candidate.stat()
-                candidate_updated = (str(candidate), stat.st_mtime_ns, stat.st_size) != candidate_before_state
-            if not candidate or not candidate_updated:
-                raise RuntimeError("Lyra-2 Step 2 did not refresh reconstructed_scene.ply")
-            if not cameras_path.is_file() or not trajectory_path.is_file():
-                raise RuntimeError("Lyra-2 Step 2 did not produce cameras.npz and gs_trajectory.mp4")
+        candidate = find_lyra_ply(lyra_output)
+        cameras_path = lyra_cameras
+        trajectory_path = lyra_trajectory
+        candidate_updated = False
+        if candidate:
+            stat = candidate.stat()
+            candidate_updated = (str(candidate), stat.st_mtime_ns, stat.st_size) != candidate_before_state
+        if not candidate or not candidate_updated:
+            raise RuntimeError("Lyra-2 Step 2 did not refresh reconstructed_scene.ply")
+        if not cameras_path.is_file() or not trajectory_path.is_file():
+            raise RuntimeError("Lyra-2 Step 2 did not produce cameras.npz and gs_trajectory.mp4")
 
-            shutil.copy2(candidate, background_ply)
-            status = {
-                "status": "lyra2_video_da3_gs",
-                "reason": "Lyra-2 generated an exploration video and DA3 reconstructed a rendered Gaussian scene.",
-                "input_video": str(lyra_video),
-                "points_source": str(candidate),
-                "output_ply": str(background_ply),
-                "cameras": str(lyra_cameras),
-                "gs_trajectory": str(lyra_trajectory),
-                "lyra_output_dir": str(lyra_output),
-                "input_fingerprint": background_fingerprint,
-            }
-            (scene_dir / "background_status.json").write_text(
-                json.dumps(status, indent=2),
-                encoding="utf-8",
-            )
-            write_cache_manifest(
-                background_manifest,
-                background_fingerprint,
-                status="lyra2_video_da3_gs",
-                output_ply=str(background_ply),
-                cameras=str(cameras_path),
-                input_video=str(lyra_video),
-            )
-            background_ready = True
+        shutil.copy2(candidate, background_ply)
+        status = {
+            "status": "lyra2_video_da3_gs",
+            "reason": "Lyra-2 generated an exploration video and DA3 reconstructed a rendered Gaussian scene.",
+            "input_video": str(lyra_video),
+            "points_source": str(candidate),
+            "output_ply": str(background_ply),
+            "cameras": str(lyra_cameras),
+            "gs_trajectory": str(lyra_trajectory),
+            "lyra_output_dir": str(lyra_output),
+            "input_fingerprint": background_fingerprint,
+        }
+        (scene_dir / "background_status.json").write_text(
+            json.dumps(status, indent=2),
+            encoding="utf-8",
+        )
+        write_cache_manifest(
+            background_manifest,
+            background_fingerprint,
+            status="lyra2_video_da3_gs",
+            output_ply=str(background_ply),
+            cameras=str(cameras_path),
+            input_video=str(lyra_video),
+        )
+        background_ready = True
 
     if not background_ready:
         raise RuntimeError("Background stage did not produce a valid output")
@@ -860,10 +735,6 @@ def main() -> int:
             runner.report["background_status"] = json.loads(background_status_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             runner.report["background_status"] = {"status": "unreadable", "path": str(background_status_path)}
-    if runner.should_stop_after("background"):
-        runner.write_report()
-        return 0
-
     gravity_fg = scene_dir / "gravity_aligned_foreground.glb"
     gravity_bg = scene_dir / "gravity_aligned_background.ply"
     gravity_json = scene_dir / "gravity_alignment.json"
@@ -894,10 +765,6 @@ def main() -> int:
     if lyra_cameras.exists():
         gravity_cmd.extend(["--background-cameras", str(lyra_cameras)])
     runner.run("gravity", gravity_cmd)
-    if runner.should_stop_after("gravity"):
-        runner.write_report()
-        return 0
-
     final_fg = scene_dir / "fully_refined_foreground.glb"
     refinement_cmd = [
         sys.executable,
@@ -924,54 +791,59 @@ def main() -> int:
             refinement_status = json.loads(refinement_status_path.read_text(encoding="utf-8"))
             runner.report["refinement_status"] = refinement_status
             if refinement_status.get("status") != "sf_ok":
-                reason = refinement_status.get("reason", "Sim-ready refinement used a fallback.")
+                reason = refinement_status.get("reason", "Sim-ready refinement did not complete successfully.")
                 runner.note("refinement", reason)
-                if not args.dry_run:
-                    runner.write_report()
-                    raise RuntimeError(f"SF-Real2Sim refinement did not succeed: {reason}")
+                runner.write_report()
+                raise RuntimeError(f"SF-Real2Sim refinement did not succeed: {reason}")
         except json.JSONDecodeError:
             runner.report["refinement_status"] = {"status": "unreadable", "path": str(refinement_status_path)}
-            if not args.dry_run:
-                runner.write_report()
-                raise RuntimeError(f"SF-Real2Sim refinement status is unreadable: {refinement_status_path}")
-    if runner.should_stop_after("refinement"):
-        runner.write_report()
-        return 0
-
+            runner.write_report()
+            raise RuntimeError(f"SF-Real2Sim refinement status is unreadable: {refinement_status_path}")
     canonical_render_script = Path(__file__).resolve().parents[2] / "scripts" / "render_gravity_aligned_scene.sh"
     preview_status = scene_dir / "layered_preview_status.json"
-    if lyra_cameras.exists():
-        if not args.dry_run:
-            for stale in (scene_dir / "layered_preview.png", scene_dir / "layered_preview.ply", preview_status):
-                stale.unlink(missing_ok=True)
-        preview_cmd = [
-            args.align_python,
-            "-m",
-            "robosnap.rendering.render_layered_scene",
-            "--foreground",
-            str(final_fg),
-            "--background-ply",
-            str(gravity_bg),
-            "--camera-npz",
-            str(lyra_cameras),
-            "--gravity-transform",
-            str(gravity_json),
-            "--foreground-camera-json",
-            str(vggt_dir / "camera.json"),
-            "--output-ply",
-            str(scene_dir / "layered_preview.ply"),
-            "--output-image",
-            str(scene_dir / "layered_preview.png"),
-            "--status-json",
-            str(preview_status),
-            "--device",
-            args.device,
-        ]
-        runner.run("preview", preview_cmd)
-    else:
-        runner.report["stages"].append(
-            {"stage": "preview", "skipped": "Gaussian camera data unavailable in explicit --skip-lyra mode"}
-        )
+    for stale in (scene_dir / "layered_preview.png", scene_dir / "layered_preview.ply", preview_status):
+        stale.unlink(missing_ok=True)
+    preview_cmd = [
+        args.align_python,
+        "-m",
+        "robosnap.rendering.render_layered_scene",
+        "--foreground",
+        str(final_fg),
+        "--background-ply",
+        str(gravity_bg),
+        "--camera-npz",
+        str(lyra_cameras),
+        "--gravity-transform",
+        str(gravity_json),
+        "--foreground-camera-json",
+        str(vggt_dir / "camera.json"),
+        "--output-ply",
+        str(scene_dir / "layered_preview.ply"),
+        "--output-image",
+        str(scene_dir / "layered_preview.png"),
+        "--status-json",
+        str(preview_status),
+        "--device",
+        args.device,
+    ]
+    runner.run("preview", preview_cmd)
+
+    required_outputs = {
+        "gravity_aligned_background": gravity_bg,
+        "fully_refined_foreground": final_fg,
+        "layered_preview_image": scene_dir / "layered_preview.png",
+        "layered_preview_status": preview_status,
+    }
+    invalid_outputs = [
+        name
+        for name, path in required_outputs.items()
+        if not path.is_file() or path.stat().st_size == 0
+    ]
+    if invalid_outputs:
+        raise RuntimeError(f"Final output contract failed: {', '.join(invalid_outputs)}")
+    preview_report = read_json(preview_status)
+    if preview_report.get("status") != "ok" or preview_report.get("renderer") != "gsplat+pyrender":
+        raise RuntimeError(f"Layered render status is invalid: {preview_status}")
 
     runner.report["final_outputs"] = {
         "gravity_aligned_background": str(gravity_bg),

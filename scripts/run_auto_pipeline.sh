@@ -2,15 +2,8 @@
 set -euo pipefail
 
 ROOT="${ROBOSNAP_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-GUI_ENV="${ROBOSNAP_ENV_FILE:-${ROOT}/configs/gui.env}"
 AUTO_ENV="${ROBOSNAP_AUTO_ENV_FILE:-${ROOT}/configs/auto_pipeline.env}"
-
-if [[ -f "${GUI_ENV}" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "${GUI_ENV}"
-  set +a
-fi
+export ROBOSNAP_ROOT="${ROBOSNAP_ROOT:-${ROOT}}"
 
 if [[ -f "${AUTO_ENV}" ]]; then
   set -a
@@ -19,7 +12,6 @@ if [[ -f "${AUTO_ENV}" ]]; then
   set +a
 fi
 
-export ROBOSNAP_ROOT="${ROBOSNAP_ROOT:-${ROOT}}"
 export PYTHONPATH="${ROBOSNAP_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 
 PY_AUTO="${PY_AUTO:-python}"
@@ -44,10 +36,6 @@ args=(
 [[ -n "${INPAINT_EXTRA_MASK:-}" ]] && args+=(--inpaint-extra-mask "${INPAINT_EXTRA_MASK}")
 [[ -n "${BACKGROUND_VIDEO:-}" ]] && args+=(--background-video "${BACKGROUND_VIDEO}")
 [[ -n "${CUDA_VISIBLE_DEVICES:-}" ]] && args+=(--cuda-visible-devices "${CUDA_VISIBLE_DEVICES}")
-[[ -n "${STOP_AFTER:-}" ]] && args+=(--stop-after "${STOP_AFTER}")
 [[ "${SKIP_EXISTING:-0}" == "1" ]] && args+=(--skip-existing)
-[[ "${SKIP_SAM3:-0}" == "1" ]] && args+=(--skip-sam3)
-[[ "${SKIP_LYRA:-0}" == "1" ]] && args+=(--skip-lyra)
-[[ "${DRY_RUN:-0}" == "1" ]] && args+=(--dry-run)
 
 exec "${PY_AUTO}" "${args[@]}" "$@"

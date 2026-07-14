@@ -22,7 +22,7 @@ More components from the paper, including **evaluation code**, **real-robot depl
 ## Release Plan
 
 - [x] GUI tool
-- [ ] Fully automatic layered scene generation pipeline
+- [x] Fully automatic layered scene generation pipeline
 - [ ] Real-robot deployment tutorial
 - [ ] Evaluation code
 - [ ] DROID-Sim dataset
@@ -55,16 +55,6 @@ Build the image:
 
 ```bash
 docker build -t robosnap-gui:local .
-```
-
-Run a dry launch first. This checks path resolution and prints the GUI command without starting Gradio:
-
-```bash
-docker run --gpus all --rm -it \
-  -e DRY_RUN=1 \
-  -v "$(pwd)/checkpoints:/workspace/robosnap/checkpoints" \
-  -v "$(pwd)/outputs:/workspace/robosnap/outputs" \
-  robosnap-gui:local
 ```
 
 Start the GUI:
@@ -137,10 +127,11 @@ This creates `robosnap-sam3`, `robosnap-asset`, `robosnap-lyra`, and `robosnap-s
 After installing the full-pipeline environments:
 
 ```bash
+export GEMINI_API_KEY=<your-api-key>
 bash scripts/run_auto_pipeline.sh
 ```
 
-Set `OBJECT_FILE` or `VLM_COMMAND` and the image-edit API key in `configs/auto_pipeline.env`. The final outputs are:
+The default adapter uses Gemini for object discovery and semantic background editing. Provider commands and input/output paths can be changed in `configs/auto_pipeline.env`. The final outputs are:
 
 ```text
 outputs/automatic/
@@ -185,10 +176,10 @@ You can access the demo [here](https://0a1b81dfcc87953981.gradio.live).
 
 Model weights are not committed. `checkpoints/` is the default local mount point and is git-ignored except for `.gitkeep`.
 
-To preview or run Hugging Face downloads, use the checkpoint helper. Private or unreleased checkpoint repos must be passed explicitly:
+Use the checkpoint helper for Hugging Face downloads. Private or unreleased checkpoint repos must be passed explicitly:
 
 ```bash
-python3 scripts/gui/python/download_checkpoints.py --dry-run --skip-optional
+python3 scripts/gui/python/download_checkpoints.py --skip-optional
 python3 scripts/gui/python/download_checkpoints.py --sam3d-repo <your-sam3d-checkpoint-repo>
 ```
 

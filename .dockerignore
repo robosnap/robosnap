@@ -4,9 +4,20 @@
 .gradio
 __pycache__
 *.pyc
+*.log
+*.bak
+*.backup
+*.orig
+*.tmp
+*~
 .pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
 .venv
 configs/gui.env
+configs/auto_pipeline.env
 checkpoints/*
 !checkpoints/.gitkeep
 outputs/*
@@ -29,3 +40,5 @@ third_party/vggt
 third_party/lyra
 third_party/vipe
 third_party/Grounded-SAM-2
+third_party/Hunyuan3D-Part/P3-SAM/demo/assets
+third_party/Hunyuan3D-Part/P3-SAM/images

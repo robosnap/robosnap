@@ -64,17 +64,13 @@ def parse_patterns(value: str | None) -> list[str] | None:
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
-def ensure_parent(path: Path, dry_run: bool) -> None:
-    if dry_run:
-        return
+def ensure_parent(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def copy_or_link(src: Path, dst: Path, mode: str, dry_run: bool) -> None:
+def copy_or_link(src: Path, dst: Path, mode: str) -> None:
     print(f"[checkpoint] {mode}: {src} -> {dst}")
-    if dry_run:
-        return
-    ensure_parent(dst, False)
+    ensure_parent(dst)
     if mode == "copy":
         shutil.copy2(src, dst)
     elif mode == "symlink":
@@ -85,21 +81,19 @@ def copy_or_link(src: Path, dst: Path, mode: str, dry_run: bool) -> None:
         raise ValueError(f"Unsupported materialize mode: {mode}")
 
 
-def download_file(item: FileDownload, cache_dir: Path, mode: str, dry_run: bool) -> None:
+def download_file(item: FileDownload, cache_dir: Path, mode: str) -> None:
     if not item.repo_id or not item.filename:
         if item.required:
             raise SystemExit(f"Missing repo/file for required checkpoint: {item.name}")
         print(f"[checkpoint] skip optional file {item.name}: repo or filename not configured")
         return
     print(f"[checkpoint] file {item.name}: {item.repo_id}/{item.filename} -> {item.destination}")
-    if dry_run:
-        return
     hf_hub_download, _ = import_hf()
     local = Path(hf_hub_download(repo_id=item.repo_id, filename=item.filename, cache_dir=str(cache_dir)))
-    copy_or_link(local, item.destination, mode, dry_run=False)
+    copy_or_link(local, item.destination, mode)
 
 
-def download_snapshot(item: SnapshotDownload, cache_dir: Path, mode: str, dry_run: bool) -> None:
+def download_snapshot(item: SnapshotDownload, cache_dir: Path, mode: str) -> None:
     if not item.repo_id:
         if item.required:
             raise SystemExit(f"Missing repo for required checkpoint snapshot: {item.name}")
@@ -111,8 +105,6 @@ def download_snapshot(item: SnapshotDownload, cache_dir: Path, mode: str, dry_ru
         print(f"[checkpoint] snapshot {item.name}: {item.repo_id} -> {item.destination}")
     if item.allow_patterns:
         print(f"[checkpoint]   allow_patterns={item.allow_patterns}")
-    if dry_run:
-        return
     _, snapshot_download = import_hf()
     local = Path(snapshot_download(repo_id=item.repo_id, cache_dir=str(cache_dir), allow_patterns=item.allow_patterns))
     if item.cache_only:
@@ -139,8 +131,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint-dir", type=Path, default=Path(os.environ.get("CHECKPOINT_DIR", root / "checkpoints")))
     parser.add_argument("--cache-dir", type=Path, default=Path(os.environ.get("HF_HOME", root / "checkpoints" / "hf_cache")))
     parser.add_argument("--materialize-mode", choices=["copy", "symlink"], default=os.environ.get("MATERIALIZE_MODE", "copy"))
-    parser.add_argument("--dry-run", action="store_true")
-
     parser.add_argument("--sam3-repo", default=os.environ.get("SAM3_HF_REPO", "facebook/sam3"))
     parser.add_argument("--sam3-file", default=os.environ.get("SAM3_HF_FILE", "sam3.pt"))
     parser.add_argument("--articulate-repo", dest="articulate_repo", default=os.environ.get("ARTICULATE_HF_REPO", os.environ.get("P3SAM_HF_REPO", "tencent/Hunyuan3D-Part")))
@@ -176,12 +166,10 @@ def main() -> int:
     print(f"[checkpoint] checkpoint_dir={checkpoint_dir}")
     print(f"[checkpoint] cache_dir={cache_dir}")
     print(f"[checkpoint] materialize_mode={mode}")
-    print(f"[checkpoint] dry_run={args.dry_run}")
-
     for item in file_items:
-        download_file(item, cache_dir, mode, args.dry_run)
+        download_file(item, cache_dir, mode)
     for item in snapshot_items:
-        download_snapshot(item, cache_dir, mode, args.dry_run)
+        download_snapshot(item, cache_dir, mode)
 
     print("[checkpoint] done")
     print("[checkpoint] update configs/gui.env, then start with: bash scripts/run_gui.sh")

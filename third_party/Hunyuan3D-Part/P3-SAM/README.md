@@ -14,8 +14,6 @@
 
 Segmenting 3D assets into their constituent parts is crucial for enhancing 3D understanding, facilitating model reuse, and supporting various applications such as part generation. However, current methods face limitations such as poor robustness when dealing with complex objects and cannot fully automate the process. In this paper, we propose a native 3D point-promptable part segmentation model termed P3-SAM, designed to fully automate the segmentation of any 3D objects into components. Inspired by SAM, P3-SAM consists of a feature extractor, multiple segmentation heads, and an IoU predictor, enabling interactive segmentation for users. We also propose an algorithm to automatically select and merge masks predicted by our model for part instance segmentation. Our model is trained on a newly built dataset containing nearly 3.7 million models with reasonable segmentation labels. Comparisons show that our method achieves precise segmentation results and strong robustness on any complex objects, attaining state-of-the-art performance.
 
-![Teaser](./images/teaser.jpg)
-
 ### TODO List 
 - [X] Realse the paper.
 - [X] Realse the code.
@@ -52,16 +50,11 @@ Segmenting 3D assets into their constituent parts is crucial for enhancing 3D un
     cd demo
     python app.py --ckpt_path ../weights/last.ckpt --data_dir assets
     ```
-    ![APP](./images/app.gif)
 4. Or you can run the following command to open a gradio app to automantically generate the masks:
     ```
     cd demo
     python gradio_demo.py 
     ```
-    ![Auto_Seg](./images/auto_seg.gif)
-
-
-
 ### Citation
 ```
 @misc{ma2025p3sam,

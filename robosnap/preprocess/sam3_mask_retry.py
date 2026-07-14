@@ -115,11 +115,8 @@ def recover_sam3_masks(
     python: str,
     sam3_dir: Path,
     checkpoint: Path,
-    dry_run: bool,
     run_text: Callable[..., None],
 ) -> None:
-    if dry_run:
-        return
     reject_mismatched_masks(objects, out_dir)
     missing = [obj for obj in objects if not (out_dir / f"{int(obj['id'])}.png").exists()]
     if missing:
@@ -132,7 +129,6 @@ def recover_sam3_masks(
             python=python,
             sam3_dir=sam3_dir,
             checkpoint=checkpoint,
-            dry_run=False,
         )
         for retry_id, obj in enumerate(missing):
             source = retry_dir / f"{retry_id}.png"

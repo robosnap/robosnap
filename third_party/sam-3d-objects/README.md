@@ -15,11 +15,11 @@ SAM 3D Objects is one part of SAM 3D, a pair of models for object and human mesh
 **SAM 3D Objects** is a foundation model that reconstructs full 3D shape geometry, texture, and layout from a single image, excelling in real-world scenarios with occlusion and clutter by using progressive training and a data engine with human feedback. It outperforms prior 3D generation models in human preference tests on real-world objects and scenes. We released code, weights, online demo, and a new challenging benchmark.
 
 
-<p align="center"><img src="doc/intro.png"/></p>
+<p align="center"><img src="https://raw.githubusercontent.com/facebookresearch/sam-3d-objects/main/doc/intro.png"/></p>
 
 -----
 
-<p align="center"><img src="doc/arch.png"/></p>
+<p align="center"><img src="https://raw.githubusercontent.com/facebookresearch/sam-3d-objects/main/doc/arch.png"/></p>
 
 ## Latest updates
 
@@ -27,25 +27,21 @@ SAM 3D Objects is one part of SAM 3D, a pair of models for object and human mesh
 
 ## Installation
 
-Follow the [setup](doc/setup.md) steps before running the following.
+Use RoboSnap's root installer, or follow the upstream [setup](https://github.com/facebookresearch/sam-3d-objects/blob/main/doc/setup.md).
 
 ## Single or Multi-Object 3D Generation
 
 SAM 3D Objects can convert masked objects in an image, into 3D models with pose, shape, texture, and layout. SAM 3D is designed to be robust in challenging natural images, handling small objects and occlusions, unusual poses, and difficult situations encountered in uncurated natural scenes like this kidsroom:
 
 <p align="center">
-  <img src="notebook/images/shutterstock_stylish_kidsroom_1640806567/image.png" width="55%"/>
-  <img src="doc/kidsroom_transparent.gif" width="40%"/>
+  <img src="https://raw.githubusercontent.com/facebookresearch/sam-3d-objects/main/notebook/images/shutterstock_stylish_kidsroom_1640806567/image.png" width="55%"/>
+  <img src="https://raw.githubusercontent.com/facebookresearch/sam-3d-objects/main/doc/kidsroom_transparent.gif" width="40%"/>
 </p>
 
-For a quick start, run `python demo.py` or use the the following lines of code:
+The RoboSnap runtime snapshot exposes the upstream inference class as a package module:
 
 ```python
-import sys
-
-# import inference code
-sys.path.append("notebook")
-from inference import Inference, load_image, load_single_mask
+from sam3d_objects.inference import Inference, load_image, load_single_mask
 
 # load model
 tag = "hf"
@@ -53,8 +49,8 @@ config_path = f"checkpoints/{tag}/pipeline.yaml"
 inference = Inference(config_path, compile=False)
 
 # load image and mask
-image = load_image("notebook/images/shutterstock_stylish_kidsroom_1640806567/image.png")
-mask = load_single_mask("notebook/images/shutterstock_stylish_kidsroom_1640806567", index=14)
+image = load_image("/path/to/image.png")
+mask = load_single_mask("/path/to/masks", index=0)
 
 # run model
 output = inference(image, mask, seed=42)
@@ -64,15 +60,15 @@ output["gs"].save_ply(f"splat.ply")
 ```
 
 For  more details and multi-object reconstruction, please take a look at out two jupyter notebooks:
-* [single object](notebook/demo_single_object.ipynb)
-* [multi object](notebook/demo_multi_object.ipynb)
+* [single object](https://github.com/facebookresearch/sam-3d-objects/blob/main/notebook/demo_single_object.ipynb)
+* [multi object](https://github.com/facebookresearch/sam-3d-objects/blob/main/notebook/demo_multi_object.ipynb)
 
 
 ## SAM 3D Body
 
 [SAM 3D Body (3DB)](https://github.com/facebookresearch/sam-3d-body) is a robust promptable foundation model for single-image 3D human mesh recovery (HMR).
 
-As a way to combine the strengths of both **SAM 3D Objects** and **SAM 3D Body**, we provide an example notebook that demonstrates how to combine the results of both models such that they are aligned in the same frame of reference. Check it out [here](notebook/demo_3db_mesh_alignment.ipynb).
+As a way to combine the strengths of both **SAM 3D Objects** and **SAM 3D Body**, the upstream project provides an [alignment notebook](https://github.com/facebookresearch/sam-3d-objects/blob/main/notebook/demo_3db_mesh_alignment.ipynb).
 
 ## License
 

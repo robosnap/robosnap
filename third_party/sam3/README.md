@@ -46,13 +46,13 @@ Meng Wang, [Peize Sun](https://peizesun.github.io/),
 [[`Blog`](https://ai.meta.com/blog/segment-anything-model-3/)]
 [[`BibTeX`](#citing-sam-3)]
 
-![SAM 3 architecture](assets/model_diagram.png?raw=true) SAM 3 is a unified foundation model for promptable segmentation in images and videos. It can detect, segment, and track objects using text or visual prompts such as points, boxes, and masks. Compared to its predecessor [SAM 2](https://github.com/facebookresearch/sam2), SAM 3 introduces the ability to exhaustively segment all instances of an open-vocabulary concept specified by a short text phrase or exemplars. Unlike prior work, SAM 3 can handle a vastly larger set of open-vocabulary prompts. It achieves 75-80% of human performance on our new [SA-CO benchmark](https://github.com/facebookresearch/sam3?tab=readme-ov-file#sa-co-dataset) which contains 270K unique concepts, over 50 times more than existing benchmarks.
+![SAM 3 architecture](https://raw.githubusercontent.com/facebookresearch/sam3/main/assets/model_diagram.png) SAM 3 is a unified foundation model for promptable segmentation in images and videos. It can detect, segment, and track objects using text or visual prompts such as points, boxes, and masks. Compared to its predecessor [SAM 2](https://github.com/facebookresearch/sam2), SAM 3 introduces the ability to exhaustively segment all instances of an open-vocabulary concept specified by a short text phrase or exemplars. Unlike prior work, SAM 3 can handle a vastly larger set of open-vocabulary prompts. It achieves 75-80% of human performance on our new [SA-CO benchmark](https://github.com/facebookresearch/sam3?tab=readme-ov-file#sa-co-dataset) which contains 270K unique concepts, over 50 times more than existing benchmarks.
 
 This breakthrough is driven by an innovative data engine that has automatically annotated over 4 million unique concepts, creating the largest high-quality open-vocabulary segmentation dataset to date. In addition, SAM 3 introduces a new model architecture featuring a presence token that improves discrimination between closely related text prompts (e.g., “a player in white” vs. “a player in red”), as well as a decoupled detector–tracker design that minimizes task interference and scales efficiently with data.
 
 <p align="center">
-  <img src="assets/dog.gif" width=380 />
-  <img src="assets/player.gif" width=380 />
+  <img src="https://raw.githubusercontent.com/facebookresearch/sam3/main/assets/dog.gif" width=380 />
+  <img src="https://raw.githubusercontent.com/facebookresearch/sam3/main/assets/player.gif" width=380 />
 </p>
 
 ## Installation
@@ -333,14 +333,14 @@ architecture, supporting video segmentation and interactive refinement.
 
 ## SA-Co Dataset
 
-We release 2 image benchmarks, [SA-Co/Gold](scripts/eval/gold/README.md) and
-[SA-Co/Silver](scripts/eval/silver/README.md), and a video benchmark
-[SA-Co/VEval](scripts/eval/veval/README.md). The datasets contain images (or videos) with annotated noun phrases. Each image/video and noun phrase pair is annotated with instance masks and unique IDs of each object matching the phrase. Phrases that have no matching objects (negative prompts) have no masks, shown in red font in the figure. See the linked READMEs for more details on how to download and run evaluations on the datasets.
+We release 2 image benchmarks, [SA-Co/Gold](https://github.com/facebookresearch/sam3/tree/main/scripts/eval/gold) and
+[SA-Co/Silver](https://github.com/facebookresearch/sam3/tree/main/scripts/eval/silver), and a video benchmark
+[SA-Co/VEval](https://github.com/facebookresearch/sam3/tree/main/scripts/eval/veval). The datasets contain images (or videos) with annotated noun phrases. Each image/video and noun phrase pair is annotated with instance masks and unique IDs of each object matching the phrase. Phrases that have no matching objects (negative prompts) have no masks, shown in red font in the figure. See the linked READMEs for more details on how to download and run evaluations on the datasets.
 
 * HuggingFace host: [SA-Co/Gold](https://huggingface.co/datasets/facebook/SACo-Gold), [SA-Co/Silver](https://huggingface.co/datasets/facebook/SACo-Silver) and [SA-Co/VEval](https://huggingface.co/datasets/facebook/SACo-VEval)
 * Roboflow host: [SA-Co/Gold](https://universe.roboflow.com/sa-co-gold), [SA-Co/Silver](https://universe.roboflow.com/sa-co-silver) and [SA-Co/VEval](https://universe.roboflow.com/sa-co-veval)
 
-![SA-Co dataset](assets/sa_co_dataset.jpg?raw=true)
+![SA-Co dataset](https://raw.githubusercontent.com/facebookresearch/sam3/main/assets/sa_co_dataset.jpg)
 
 ## Development
 

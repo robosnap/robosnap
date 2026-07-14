@@ -5,7 +5,7 @@ This repository's first-party source code is licensed under the Apache
 License, Version 2.0. See LICENSE.
 
 The top-level Apache-2.0 license applies only to first-party RoboSnap code,
-including the public GUI package, launch scripts, configuration templates,
+including the public RoboSnap package, launch scripts, configuration templates,
 documentation, and release-check helpers, unless a file states otherwise.
 
 Third-party source snapshots under third_party/ remain under their upstream

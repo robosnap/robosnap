@@ -27,13 +27,11 @@ import numpy as np
 import torch
 
 _BASE_DIR = Path(__file__).resolve().parents[1]
-_NOTEBOOK_DIR = _BASE_DIR / "notebook"
-for _path in (_BASE_DIR, _NOTEBOOK_DIR):
-    _path_str = str(_path)
-    if _path_str not in sys.path:
-        sys.path.insert(0, _path_str)
-from inference import Inference
-from load_images_and_masks import load_images_and_masks_from_path
+_base_dir_str = str(_BASE_DIR)
+if _base_dir_str not in sys.path:
+    sys.path.insert(0, _base_dir_str)
+from sam3d_objects.inference import Inference
+from sam3d_objects.load_images_and_masks import load_images_and_masks_from_path
 from sam3d_objects.utils.cross_attention_logger import CrossAttentionLogger
 
 

@@ -68,7 +68,6 @@ export PY_ARTICULATE_CONDA_PREFIX="${PY_ARTICULATE_CONDA_PREFIX:-${PY_P3SAM_COND
 export PY_P3SAM_CONDA_PREFIX="${PY_P3SAM_CONDA_PREFIX:-${PY_ARTICULATE_CONDA_PREFIX}}"
 PORT="${PORT:-7897}"
 MAX_FRAMES="${MAX_FRAMES:-20}"
-DRY_RUN="${DRY_RUN:-0}"
 PUBLIC_DEMO="${PUBLIC_DEMO:-${ROBOSNAP_PUBLIC_DEMO:-0}}"
 DEFAULT_VIDEO="${ROBOSNAP_ROOT}/examples/video.mp4"
 DEFAULT_OUT_DIR="${ROBOSNAP_ROOT}/outputs/example/multi_mask"
@@ -114,11 +113,9 @@ if [[ "${PUBLIC_DEMO}" == "1" ]]; then
   GRADIO_DELETE_CACHE_AGE="${GRADIO_DELETE_CACHE_AGE:-21600}"
 fi
 
-if [[ "${DRY_RUN}" != "1" ]]; then
-  mkdir -p "${OUT_DIR}"
-  if [[ "${PUBLIC_DEMO}" == "1" ]]; then
-    mkdir -p "${GRADIO_TEMP_DIR}" "$(dirname "${OUT_DIR}")/downloads"
-  fi
+mkdir -p "${OUT_DIR}"
+if [[ "${PUBLIC_DEMO}" == "1" ]]; then
+  mkdir -p "${GRADIO_TEMP_DIR}" "$(dirname "${OUT_DIR}")/downloads"
 fi
 
 prepare_legacy_video_workspace() {
@@ -142,9 +139,7 @@ prepare_legacy_video_workspace() {
   fi
 }
 
-if [[ "${DRY_RUN}" != "1" ]]; then
-  prepare_legacy_video_workspace
-fi
+prepare_legacy_video_workspace
 
 if [[ ! -f "${VIDEO}" ]]; then
   echo "VIDEO does not exist: ${VIDEO}" >&2
@@ -214,10 +209,4 @@ echo "Starting RoboSnap GUI on port ${PORT}"
 echo "Input video: ${VIDEO}"
 echo "Output directory: ${OUT_DIR}"
 echo "Public demo mode: ${PUBLIC_DEMO}"
-if [[ "${DRY_RUN}" == "1" ]]; then
-  printf 'DRY RUN:'
-  printf ' %q' "${cmd[@]}"
-  printf '\n'
-  exit 0
-fi
 exec "${cmd[@]}"

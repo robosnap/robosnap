@@ -134,7 +134,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-scene", type=Path, help="Output GLB/scene when --input-scene is set.")
     parser.add_argument("--transform-json", type=Path, required=True, help="Output JSON transform metadata.")
     parser.add_argument("--center-mode", choices=["origin", "bounds_center", "floor_center"], default="origin", help="Pivot used when applying the transform to a scene.")
-    parser.add_argument("--dry-run", action="store_true", help="Print/write metadata without exporting a scene.")
     return parser.parse_args()
 
 
@@ -163,17 +162,16 @@ def main() -> int:
     pivot = None
 
     if args.input_scene:
-        if not args.output_scene and not args.dry_run:
-            raise ValueError("--output-scene is required when --input-scene is set unless --dry-run is used")
+        if not args.output_scene:
+            raise ValueError("--output-scene is required when --input-scene is set")
         import trimesh
 
         scene = trimesh.load(str(args.input_scene), force="scene")
         transform, pivot = centroid_transform(scene, rotation, args.center_mode)
         scene.apply_transform(transform)
-        if args.output_scene and not args.dry_run:
-            args.output_scene.parent.mkdir(parents=True, exist_ok=True)
-            scene.export(str(args.output_scene))
-            print(f"[OK] wrote {args.output_scene}")
+        args.output_scene.parent.mkdir(parents=True, exist_ok=True)
+        scene.export(str(args.output_scene))
+        print(f"[OK] wrote {args.output_scene}")
 
     meta = {
         "source": source_kind,

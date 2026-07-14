@@ -102,6 +102,10 @@ def normalize_objects(data: Any) -> list[dict[str, Any]]:
     return [obj for obj in objects if obj["prompt"]]
 
 
+def expand_command_template(template: str, **values: str) -> list[str]:
+    return [token.format(**values) for token in shlex.split(template)]
+
+
 def load_objects(args: argparse.Namespace, output_dir: Path) -> list[dict[str, Any]]:
     if args.objects:
         return normalize_objects(parse_comma_list(args.objects))
@@ -119,13 +123,14 @@ def load_objects(args: argparse.Namespace, output_dir: Path) -> list[dict[str, A
         output_txt = output_dir / "object.txt"
         prompt_path = output_dir / "vlm_prompt.txt"
         prompt_path.write_text(load_prompt_text(args.vlm_prompt), encoding="utf-8")
-        command = args.vlm_command.format(
+        command = expand_command_template(
+            args.vlm_command,
             image=str(args.image),
             prompt=str(prompt_path),
             output_json=str(output_json),
             output_txt=str(output_txt),
         )
-        result = subprocess.run(shlex.split(command), capture_output=True, text=True)
+        result = subprocess.run(command, capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(
                 "VLM command failed with code "
@@ -190,13 +195,12 @@ def run_sam3(
     python: str,
     sam3_dir: Path,
     checkpoint: Path,
-    dry_run: bool,
 ) -> None:
     if not prompts:
         return
     script = sam3_dir / "inference_image.py"
     missing = [p for p in (script, checkpoint, image) if not p.exists()]
-    if missing and not dry_run:
+    if missing:
         raise FileNotFoundError("Missing SAM3 input(s): " + ", ".join(str(p) for p in missing))
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
@@ -215,8 +219,6 @@ def run_sam3(
         str(out_dir),
     ]
     print("[auto-segment] " + " ".join(shlex.quote(part) for part in cmd))
-    if dry_run:
-        return
     proc = subprocess.run(cmd, cwd=str(sam3_dir), env=build_env_with_pythonpath(sam3_dir))
     if proc.returncode != 0:
         raise RuntimeError(f"SAM3 failed with code {proc.returncode}")
@@ -317,58 +319,57 @@ def run_inpaint(args: argparse.Namespace, output_dir: Path, paths: dict[str, str
 
     if args.inpaint_command:
         provider_status_path = output_dir / "inpaint_provider_status.json"
-        command = args.inpaint_command.format(
+        command = expand_command_template(
+            args.inpaint_command,
             image=str(args.image),
             mask=paths["inpaint_mask"],
             output=str(output_path),
             prompt=str(prompt_path),
             status=str(provider_status_path),
         )
-        print("[auto-segment] " + command)
-        if not args.dry_run:
-            result = subprocess.run(shlex.split(command), capture_output=True, text=True)
-            if result.returncode != 0:
-                raise RuntimeError(
-                    "Inpaint command failed with code "
-                    f"{result.returncode}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
-                )
-            if not output_path.exists():
-                raise RuntimeError(f"Inpaint command did not create {output_path}")
-            output_image = Image.open(output_path)
-            source_image = Image.open(args.image)
-            if output_image.size != source_image.size:
-                raise RuntimeError(
-                    f"Inpaint output size {output_image.size} does not match source image size {source_image.size}: {output_path}"
-                )
-            provider_status = {}
-            if provider_status_path.exists():
-                try:
-                    provider_status = json.loads(provider_status_path.read_text(encoding="utf-8"))
-                except json.JSONDecodeError:
-                    provider_status = {"status": "unreadable", "path": str(provider_status_path)}
-            status = {
-                "status": "external_ok",
-                "image": str(args.image),
-                "mask": paths["inpaint_mask"],
-                "output": str(output_path),
-                "prompt_file": str(prompt_path),
-                "provider_status_file": str(provider_status_path),
-                "provider_status": provider_status,
-                "output_mode": provider_status.get("output_mode", "provider_defined"),
-                "sha256": {
-                    "image": sha256_file(args.image),
-                    "mask": sha256_file(Path(paths["inpaint_mask"])),
-                    "output": sha256_file(output_path),
-                },
-            }
-            (output_dir / "complete_background_status.json").write_text(json.dumps(status, indent=2), encoding="utf-8")
+        print("[auto-segment] " + shlex.join(command))
+        result = subprocess.run(command, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Inpaint command failed with code "
+                f"{result.returncode}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            )
+        if not output_path.exists():
+            raise RuntimeError(f"Inpaint command did not create {output_path}")
+        output_image = Image.open(output_path)
+        source_image = Image.open(args.image)
+        if output_image.size != source_image.size:
+            raise RuntimeError(
+                f"Inpaint output size {output_image.size} does not match source image size {source_image.size}: {output_path}"
+            )
+        provider_status = {}
+        if provider_status_path.exists():
+            try:
+                provider_status = json.loads(provider_status_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                provider_status = {"status": "unreadable", "path": str(provider_status_path)}
+        status = {
+            "status": "external_ok",
+            "image": str(args.image),
+            "mask": paths["inpaint_mask"],
+            "output": str(output_path),
+            "prompt_file": str(prompt_path),
+            "provider_status_file": str(provider_status_path),
+            "provider_status": provider_status,
+            "output_mode": provider_status.get("output_mode", "provider_defined"),
+            "sha256": {
+                "image": sha256_file(args.image),
+                "mask": sha256_file(Path(paths["inpaint_mask"])),
+                "output": sha256_file(output_path),
+            },
+        }
+        (output_dir / "complete_background_status.json").write_text(json.dumps(status, indent=2), encoding="utf-8")
         return
 
-    if not args.dry_run:
-        raise RuntimeError(
-            "No --inpaint-command was provided. Configure an image-edit API/provider; "
-            "the pipeline will not treat an unchanged source image as a completed background."
-        )
+    raise RuntimeError(
+        "No --inpaint-command was provided. Configure an image-edit API/provider; "
+        "the pipeline will not treat an unchanged source image as a completed background."
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -384,12 +385,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sam3-python", default=os.environ.get("PY_SAM3", sys.executable))
     parser.add_argument("--sam3-dir", type=Path, default=Path(os.environ.get("SAM3_DIR", root / "third_party" / "sam3")))
     parser.add_argument("--sam3-checkpoint", type=Path, default=Path(os.environ.get("SAM3_CKPT", root / "checkpoints" / "sam3" / "sam3.pt")))
-    parser.add_argument("--skip-sam3", action="store_true")
     parser.add_argument("--inpaint-command", help="Command template. Placeholders: {image}, {mask}, {output}, {prompt}, {status}.")
     parser.add_argument("--inpaint-prompt", default=DEFAULT_INPAINT_PROMPT)
     parser.add_argument("--inpaint-dilation", type=int, default=7)
     parser.add_argument("--inpaint-extra-mask", type=Path, help="Optional binary semantic mask merged into the edit region.")
-    parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
 
@@ -404,72 +403,65 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     sam3d_dir.mkdir(parents=True, exist_ok=True)
 
-    if not args.dry_run:
-        if not args.image.exists():
-            raise FileNotFoundError(args.image)
-        shutil.copy2(args.image, output_dir / "image.png")
+    if not args.image.exists():
+        raise FileNotFoundError(args.image)
+    shutil.copy2(args.image, output_dir / "image.png")
 
     objects = load_objects(args, output_dir)
     write_object_files(objects, output_dir)
     prompts = [obj["prompt"] for obj in objects]
     support_prompts = parse_comma_list(args.support_prompts)
 
-    if not args.skip_sam3:
-        run_sam3(
-            image=args.image,
-            prompts=prompts,
-            out_dir=sam3d_dir,
-            python=args.sam3_python,
-            sam3_dir=args.sam3_dir.expanduser().resolve(),
-            checkpoint=args.sam3_checkpoint.expanduser().resolve(),
-            dry_run=args.dry_run,
-        )
-        recover_sam3_masks(
-            image=args.image,
-            objects=objects,
-            out_dir=sam3d_dir,
-            python=args.sam3_python,
-            sam3_dir=args.sam3_dir.expanduser().resolve(),
-            checkpoint=args.sam3_checkpoint.expanduser().resolve(),
-            dry_run=args.dry_run,
-            run_text=run_sam3,
-        )
-        if not args.dry_run:
-            objects = compact_object_masks(sam3d_dir, objects)
-            if not objects:
-                raise RuntimeError("SAM3 did not produce any object masks.")
-            write_object_files(objects, output_dir)
-            prompts = [obj["prompt"] for obj in objects]
-        run_sam3(
-            image=args.image,
-            prompts=support_prompts,
-            out_dir=support_dir,
-            python=args.sam3_python,
-            sam3_dir=args.sam3_dir.expanduser().resolve(),
-            checkpoint=args.sam3_checkpoint.expanduser().resolve(),
-            dry_run=args.dry_run,
-        )
+    run_sam3(
+        image=args.image,
+        prompts=prompts,
+        out_dir=sam3d_dir,
+        python=args.sam3_python,
+        sam3_dir=args.sam3_dir.expanduser().resolve(),
+        checkpoint=args.sam3_checkpoint.expanduser().resolve(),
+    )
+    recover_sam3_masks(
+        image=args.image,
+        objects=objects,
+        out_dir=sam3d_dir,
+        python=args.sam3_python,
+        sam3_dir=args.sam3_dir.expanduser().resolve(),
+        checkpoint=args.sam3_checkpoint.expanduser().resolve(),
+        run_text=run_sam3,
+    )
+    objects = compact_object_masks(sam3d_dir, objects)
+    if not objects:
+        raise RuntimeError("SAM3 did not produce any object masks.")
+    write_object_files(objects, output_dir)
+    prompts = [obj["prompt"] for obj in objects]
+    run_sam3(
+        image=args.image,
+        prompts=support_prompts,
+        out_dir=support_dir,
+        python=args.sam3_python,
+        sam3_dir=args.sam3_dir.expanduser().resolve(),
+        checkpoint=args.sam3_checkpoint.expanduser().resolve(),
+    )
 
-    if not args.dry_run:
-        paths, mask_stats = save_mask_products(
-            image_path=args.image,
-            sam3d_dir=sam3d_dir,
-            support_dir=support_dir,
-            object_count=len(prompts),
-            support_count=len(support_prompts),
-            output_dir=output_dir,
-            inpaint_dilation=args.inpaint_dilation,
-            inpaint_extra_mask=args.inpaint_extra_mask,
-        )
-        mask_status = {
-            "status": "ready",
-            "objects": prompts,
-            "object_count": len(prompts),
-            "inpaint_dilation": args.inpaint_dilation,
-            **mask_stats,
-        }
-        (output_dir / "mask_status.json").write_text(json.dumps(mask_status, indent=2), encoding="utf-8")
-        run_inpaint(args, output_dir, paths)
+    paths, mask_stats = save_mask_products(
+        image_path=args.image,
+        sam3d_dir=sam3d_dir,
+        support_dir=support_dir,
+        object_count=len(prompts),
+        support_count=len(support_prompts),
+        output_dir=output_dir,
+        inpaint_dilation=args.inpaint_dilation,
+        inpaint_extra_mask=args.inpaint_extra_mask,
+    )
+    mask_status = {
+        "status": "ready",
+        "objects": prompts,
+        "object_count": len(prompts),
+        "inpaint_dilation": args.inpaint_dilation,
+        **mask_stats,
+    }
+    (output_dir / "mask_status.json").write_text(json.dumps(mask_status, indent=2), encoding="utf-8")
+    run_inpaint(args, output_dir, paths)
 
     print(f"[auto-segment] wrote workspace: {output_dir}")
     return 0

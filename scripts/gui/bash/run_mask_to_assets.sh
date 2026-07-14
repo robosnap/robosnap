@@ -8,7 +8,6 @@ INPUT_PATH=""
 MASK_DIR=""
 IMAGE_PATH=""
 NUM_MASKS=""
-DRY_RUN="${DRY_RUN:-0}"
 
 usage() {
   cat <<USAGE
@@ -27,13 +26,11 @@ Options:
   --mask-dir PATH        single_mask directory for single mode.
   --image PATH           Image for single mode. Defaults to MASK_DIR/image.png.
   --num-masks N          Number of masks for image2glb.py. Auto-detected if omitted.
-  --dry-run              Print the command without running it.
   -h, --help             Show this help.
 
 Examples:
   bash scripts/gui/bash/run_mask_to_assets.sh --mode multi --input-path outputs/case/multi_mask
   bash scripts/gui/bash/run_mask_to_assets.sh --mode single --mask-dir outputs/case/single_mask
-  DRY_RUN=1 bash scripts/gui/bash/run_mask_to_assets.sh --mode auto --input-path outputs/case/multi_mask
 USAGE
 }
 
@@ -67,10 +64,6 @@ while [[ $# -gt 0 ]]; do
     --num-masks)
       NUM_MASKS="$2"
       shift 2
-      ;;
-    --dry-run)
-      DRY_RUN=1
-      shift
       ;;
     -h|--help)
       usage
@@ -163,17 +156,12 @@ PYCOUNT
 
 run_cmd() {
   log "$(printf '%q ' "$@")"
-  if [[ "${DRY_RUN}" != "1" ]]; then
-    "$@"
-  fi
+  "$@"
 }
 
-require_file_unless_dry_run() {
+require_file() {
   local path="$1"
   local label="$2"
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    return 0
-  fi
   [[ -f "${path}" ]] || fail "${label} does not exist: ${path}"
 }
 
@@ -222,7 +210,7 @@ case "${MODE}" in
   multi)
     [[ -n "${INPUT_PATH}" ]] || fail "multi mode requires --input-path"
     [[ -d "${INPUT_PATH}" ]] || fail "input path does not exist: ${INPUT_PATH}"
-    require_file_unless_dry_run "${SAM3D_CONFIG}" "SAM3D_CONFIG"
+    require_file "${SAM3D_CONFIG}" "SAM3D_CONFIG"
     run_cmd env \
       CONDA_PREFIX="${PY_ASSET_CONDA_PREFIX}" \
       HF_HOME="${HF_HOME}" \
@@ -241,7 +229,7 @@ case "${MODE}" in
     [[ -d "${MASK_DIR}" ]] || fail "mask dir does not exist: ${MASK_DIR}"
     IMAGE_PATH="${IMAGE_PATH:-${MASK_DIR}/image.png}"
     [[ -f "${IMAGE_PATH}" ]] || fail "image does not exist: ${IMAGE_PATH}"
-    require_file_unless_dry_run "${SAM3D_CONFIG}" "SAM3D_CONFIG"
+    require_file "${SAM3D_CONFIG}" "SAM3D_CONFIG"
     if [[ -z "${NUM_MASKS}" ]]; then
       NUM_MASKS="$(infer_num_masks "${MASK_DIR}")"
     fi

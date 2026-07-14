@@ -17,7 +17,6 @@ TORCH_CU128_INDEX="${TORCH_CU128_INDEX:-https://download.pytorch.org/whl/cu128}"
 PIP_EXTRA_INDEX_URLS="${PIP_EXTRA_INDEX_URLS:-https://pypi.ngc.nvidia.com https://download.pytorch.org/whl/cu121}"
 KAOLIN_FIND_LINKS="${KAOLIN_FIND_LINKS:-https://nvidia-kaolin.s3.us-east-2.amazonaws.com/torch-2.5.1_cu121.html}"
 MAX_JOBS="${MAX_JOBS:-4}"
-DRY_RUN="${DRY_RUN:-0}"
 YES="${YES:-0}"
 INSTALL_SAM3=1
 INSTALL_ASSET=1
@@ -26,7 +25,6 @@ INSTALL_SIM=1
 SETUP_SOURCES=1
 WRITE_ENV=1
 FORCE_ENV=0
-VERIFY=1
 DOWNLOAD_CORE=0
 DOWNLOAD_LYRA=0
 ACCEPT_LYRA_LICENSE=0
@@ -40,14 +38,12 @@ Create the four Conda runtimes for the automatic layered-scene pipeline and
 write configs/auto_pipeline.env.
 
 Options:
-  --dry-run                 Print commands without executing them.
   -y, --yes                 Do not prompt before installation.
   --skip-sam3               Skip the SAM3 runtime.
   --skip-asset              Skip the SAM3D/VGGT/alignment runtime.
   --skip-lyra               Skip the Lyra runtime.
   --skip-sim                Skip the sim-ready runtime.
   --skip-sources            Do not fetch pinned VGGT/Lyra sources.
-  --skip-verify             Do not run import smoke tests.
   --no-write-env            Do not write configs/auto_pipeline.env.
   --force-env               Replace configs/auto_pipeline.env.
   --download-checkpoints    Download SAM3, gated SAM3D, and VGGT models.
@@ -64,14 +60,12 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dry-run) DRY_RUN=1 ;;
     -y|--yes) YES=1 ;;
     --skip-sam3) INSTALL_SAM3=0 ;;
     --skip-asset) INSTALL_ASSET=0 ;;
     --skip-lyra) INSTALL_LYRA=0 ;;
     --skip-sim) INSTALL_SIM=0 ;;
     --skip-sources) SETUP_SOURCES=0 ;;
-    --skip-verify) VERIFY=0 ;;
     --no-write-env) WRITE_ENV=0 ;;
     --force-env) FORCE_ENV=1 ;;
     --download-checkpoints) DOWNLOAD_CORE=1 ;;
@@ -96,13 +90,11 @@ run() {
   printf '[auto-install]'
   printf ' %q' "$@"
   printf '\n'
-  if [[ "${DRY_RUN}" != "1" ]]; then
-    "$@"
-  fi
+  "$@"
 }
 
 confirm() {
-  if [[ "${YES}" == "1" || "${DRY_RUN}" == "1" ]]; then
+  if [[ "${YES}" == "1" ]]; then
     return 0
   fi
   read -r -p "Create/update the four automatic-pipeline Conda envs? [y/N] " reply
@@ -119,9 +111,7 @@ env_exists() {
 create_env() {
   local env_name="$1"
   local py_version="$2"
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    run "${CONDA_BIN}" create -y -n "${env_name}" "python=${py_version}" pip
-  elif env_exists "${env_name}"; then
+  if env_exists "${env_name}"; then
     log "conda env exists: ${env_name}"
   else
     run "${CONDA_BIN}" create -y -n "${env_name}" "python=${py_version}" pip
@@ -130,20 +120,12 @@ create_env() {
 
 conda_prefix() {
   local env_name="$1"
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    printf '/opt/conda/envs/%s\n' "${env_name}"
-  else
-    "${CONDA_BIN}" run -n "${env_name}" python -c 'import sys; print(sys.prefix)'
-  fi
+  "${CONDA_BIN}" run -n "${env_name}" python -c 'import sys; print(sys.prefix)'
 }
 
 site_packages() {
   local env_name="$1"
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    printf '/opt/conda/envs/%s/lib/python3.10/site-packages\n' "${env_name}"
-  else
-    "${CONDA_BIN}" run -n "${env_name}" python -c 'import site; print(site.getsitepackages()[0])'
-  fi
+  "${CONDA_BIN}" run -n "${env_name}" python -c 'import site; print(site.getsitepackages()[0])'
 }
 
 pip_install() {
@@ -246,9 +228,6 @@ install_sim() {
 }
 
 verify_envs() {
-  if [[ "${VERIFY}" != "1" ]]; then
-    return 0
-  fi
   if [[ "${INSTALL_SAM3}" == "1" ]]; then
     run "${CONDA_BIN}" run -n "${SAM3_ENV}" python -c \
       "import cv2, numpy, sam3, torch; print('sam3', torch.__version__)"
@@ -269,9 +248,7 @@ verify_envs() {
 
 python_for_env() {
   local env_name="$1"
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    printf '/opt/conda/envs/%s/bin/python\n' "${env_name}"
-  elif env_exists "${env_name}"; then
+  if env_exists "${env_name}"; then
     "${CONDA_BIN}" run -n "${env_name}" python -c 'import sys; print(sys.executable)'
   else
     printf 'python\n'
@@ -280,9 +257,7 @@ python_for_env() {
 
 prefix_for_env() {
   local env_name="$1"
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    printf '/opt/conda/envs/%s\n' "${env_name}"
-  elif env_exists "${env_name}"; then
+  if env_exists "${env_name}"; then
     conda_prefix "${env_name}"
   fi
 }
@@ -308,9 +283,6 @@ write_auto_env() {
   py_sim="$(python_for_env "${SIM_ENV}")"
   lyra_prefix="$(prefix_for_env "${LYRA_ENV}")"
   log "write ${env_file}"
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    return 0
-  fi
 
   {
     printf 'ROBOSNAP_ROOT=%s\n' "$(shell_quote "${ROOT}")"
@@ -337,34 +309,20 @@ write_auto_env() {
     printf 'LYRA2_CHECKPOINT_ROOT=${CHECKPOINT_DIR}/lyra2/checkpoints\n'
     printf 'LYRA_CHECKPOINT_DIR=${CHECKPOINT_DIR}/lyra\n'
     printf 'LYRA_DA3_MODEL_PATH=${LYRA2_CHECKPOINT_ROOT}/recon/model.pt\n\n'
-    printf 'LYRA_PROMPT="A clean realistic indoor scene with stable architecture, lighting, and materials."\n'
-    printf 'LYRA_FRAMES_IN=81\nLYRA_FRAMES_OUT=81\n'
     printf 'LYRA_RESOLUTION=352,624\nLYRA_USE_DMD=1\nLYRA_OFFLOAD=1\n'
-    printf 'LYRA_RECON_DA3_MAX_FRAMES=32\nLYRA_NO_VIPE=0\n'
-    printf 'LYRA_MAX_FRAMES=0\nLYRA_DA3_MAX_FRAMES=128\nLYRA_MAX_RESOLUTION=0\n'
-    printf 'LYRA_GS_DOWN_RATIO=2\nROBOSNAP_MAX_JOBS=1\n\n'
-    printf 'SF_REAL2SIM_COLLISION_METHOD=vhacd\n'
+    printf 'LYRA_RECON_DA3_MAX_FRAMES=32\nROBOSNAP_MAX_JOBS=1\n\n'
     printf 'SF_REAL2SIM_USE_CACHED_COLLISIONS=1\n'
-    printf 'SF_REAL2SIM_DISABLE_COLLISION_SPLIT=1\n'
-    printf 'SF_REAL2SIM_NUM_ROUNDS=30\nSF_SECOND_PASS_NUM_ROUNDS=30\n'
-    printf 'SF_REAL2SIM_SDF_STEPS_PER_ROUND=15\nSF_SECOND_PASS_SDF_STEPS_PER_ROUND=15\n'
-    printf 'SF_REAL2SIM_SIM_STEPS_PER_ROUND=8\nSF_SECOND_PASS_SIM_STEPS_PER_ROUND=8\n'
-    printf 'SF_REAL2SIM_SIM_DAMPING_STEPS=6\nSF_SECOND_PASS_SIM_DAMPING_STEPS=6\n'
-    printf 'SF_SECOND_PASS_REGULARIZATION_WEIGHT=1.0\n'
-    printf 'SF_SECOND_PASS_MIN_REPROJECTION_RATIO=0.98\n'
-    printf 'SF_REAL2SIM_SDF_RESOLUTION=128\nSF_REAL2SIM_NUM_SURFACE_POINTS=1024\n'
-    printf 'SF_REAL2SIM_SDF_WATERTIGHT_METHOD=voxel\n'
-    printf 'SF_REAL2SIM_SDF_WATERTIGHT_VOXEL_RESOLUTION=96\n'
-    printf 'SF_PROJECTION_MIN_SCALE=0.35\nSF_PROJECTION_MAX_SCALE=1.5\nSF_PROJECTION_MIN_IOU=0.55\n\n'
-    printf 'INPUT_IMAGE=${ROBOSNAP_ROOT}/examples/test1.png\n'
-    printf 'OUTPUT_DIR=${ROBOSNAP_ROOT}/outputs/automatic\n'
-    printf 'DEVICE=cuda:0\nCUDA_VISIBLE_DEVICES=\nINPAINT_DILATION=7\n\n'
-    printf '# Configure OBJECT_FILE or VLM_COMMAND before running.\n'
+    printf '\n'
+    printf 'INPUT_IMAGE=${INPUT_IMAGE:-${ROBOSNAP_ROOT}/examples/test1.png}\n'
+    printf 'OUTPUT_DIR=${OUTPUT_DIR:-${ROBOSNAP_ROOT}/outputs/automatic}\n'
+    printf 'DEVICE=${DEVICE:-cuda:0}\nCUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}\nINPAINT_DILATION=${INPAINT_DILATION:-7}\n\n'
+    printf '# Set OBJECT_FILE to bypass automatic object discovery.\n'
     printf '# OBJECT_FILE=/path/to/object.txt\n'
-    printf '# VLM_COMMAND='\''python /path/to/list_objects.py --image {image} --prompt {prompt} --output {output_json}'\''\n'
+    printf 'GEMINI_TEXT_MODEL=gemini-3.5-flash\n'
+    printf 'VLM_COMMAND="%s ${ROBOSNAP_ROOT}/scripts/run_gemini_vlm.py --image {image} --prompt {prompt} --output {output_json}"\n' "${py_asset}"
     printf 'INPAINT_PROMPT=${ROBOSNAP_ROOT}/configs/prompts/background_inpaint.txt\n'
     printf 'GEMINI_IMAGE_MODEL=gemini-3.1-flash-image\n'
-    printf 'INPAINT_COMMAND="%s ${ROBOSNAP_ROOT}/scripts/run_gemini_image_edit.py --image {image} --mask {mask} --prompt {prompt} --output {output} --status {status}"\n' "${py_sam3}"
+    printf 'INPAINT_COMMAND="%s ${ROBOSNAP_ROOT}/scripts/run_gemini_image_edit.py --image {image} --mask {mask} --prompt {prompt} --output {output} --status {status}"\n' "${py_asset}"
   } > "${env_file}"
 }
 
@@ -387,17 +345,12 @@ download_models() {
     args+=(--lyra --accept-lyra-license)
   fi
   [[ "${COPY_CHECKPOINTS}" == "1" ]] && args+=(--copy)
-  [[ "${DRY_RUN}" == "1" ]] && args+=(--dry-run)
   run "${python_cmd}" "${ROOT}/scripts/download_auto_checkpoints.py" "${args[@]}"
 }
 
 if ! command -v "${CONDA_BIN}" >/dev/null 2>&1; then
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    log "conda not found; dry-run will still print the plan"
-  else
-    echo "conda not found. Set CONDA_EXE=/path/to/conda." >&2
-    exit 127
-  fi
+  echo "conda not found. Set CONDA_EXE=/path/to/conda." >&2
+  exit 127
 fi
 
 cd "${ROOT}"
@@ -409,7 +362,6 @@ if [[ "${SETUP_SOURCES}" == "1" ]]; then
   source_args=()
   [[ "${INSTALL_ASSET}" != "1" ]] && source_args+=(--skip-vggt)
   [[ "${INSTALL_LYRA}" != "1" ]] && source_args+=(--skip-lyra)
-  [[ "${DRY_RUN}" == "1" ]] && source_args+=(--dry-run)
   run bash "${ROOT}/scripts/setup_auto_sources.sh" "${source_args[@]}"
 fi
 
@@ -423,4 +375,4 @@ write_auto_env
 download_models
 
 log "done"
-log "run: bash scripts/run_auto_pipeline.sh --object-file /path/to/object.txt"
+log "run: export GEMINI_API_KEY=<your-api-key>; bash scripts/run_auto_pipeline.sh"

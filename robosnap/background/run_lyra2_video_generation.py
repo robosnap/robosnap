@@ -155,7 +155,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--offload-da3-diffusion", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--merge-lora", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--force", action="store_true")
-    parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
 
@@ -231,8 +230,6 @@ def main() -> int:
         cmd.append("--merge_lora")
 
     print("[lyra-video] " + " ".join(cmd))
-    if args.dry_run:
-        return 0
     proc = subprocess.run(cmd, cwd=runtime_dir, env=build_env(args.python, lyra2_dir))
     if proc.returncode != 0:
         return proc.returncode

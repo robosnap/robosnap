@@ -103,6 +103,7 @@ def build_request(image_path: Path, mask_path: Path, prompt: str, args: argparse
             {"type": "image", "mime_type": "image/png", "data": mask_to_png_b64(mask_path, image_size)},
         ],
         "response_format": response_format,
+        "store": False,
     }
 
 
@@ -135,6 +136,14 @@ def extract_image_bytes(response: dict[str, Any]) -> tuple[bytes, str]:
     if isinstance(output_image, dict) and output_image.get("data"):
         mime_type = output_image.get("mime_type") or output_image.get("mimeType") or "image/png"
         return base64.b64decode(output_image["data"]), mime_type
+
+    for step in reversed(response.get("steps", [])):
+        if not isinstance(step, dict) or step.get("type") != "model_output":
+            continue
+        for block in reversed(step.get("content", [])):
+            if isinstance(block, dict) and block.get("type") == "image" and block.get("data"):
+                mime_type = block.get("mime_type") or block.get("mimeType") or "image/png"
+                return base64.b64decode(block["data"]), mime_type
 
     outputs = response.get("output") or response.get("outputs") or []
     for item in outputs if isinstance(outputs, list) else []:

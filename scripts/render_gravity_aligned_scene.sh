@@ -2,13 +2,26 @@
 set -euo pipefail
 
 ROOT="${ROBOSNAP_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+PY_RENDER="${PY_RENDER:-${PY_ALIGN:-${PY_ASSET:-python}}}"
+
+export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+export PATH="$(dirname "${PY_RENDER}"):${PATH}"
+export PYTHONUTF8=1
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+export PYOPENGL_PLATFORM="${PYOPENGL_PLATFORM:-egl}"
+export MAX_JOBS="${MAX_JOBS:-1}"
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  exec "${PY_RENDER}" -m robosnap.rendering.render_layered_scene --help
+fi
+
 if [[ $# -gt 0 ]]; then
   SCENE_DIR="$1"
   shift
 else
   SCENE_DIR="${SCENE_DIR:-${ROOT}/outputs/automatic}"
 fi
-PY_RENDER="${PY_RENDER:-${PY_ALIGN:-${PY_ASSET:-python}}}"
 FOREGROUND="${FOREGROUND:-${SCENE_DIR}/fully_refined_foreground.glb}"
 BACKGROUND_PLY="${BACKGROUND_PLY:-${SCENE_DIR}/gravity_aligned_background.ply}"
 OUTPUT_PLY="${OUTPUT_PLY:-${SCENE_DIR}/layered_preview.ply}"
@@ -19,14 +32,6 @@ GRAVITY_TRANSFORM="${GRAVITY_TRANSFORM:-${SCENE_DIR}/gravity_alignment.json}"
 FOREGROUND_CAMERA_JSON="${FOREGROUND_CAMERA_JSON:-${SCENE_DIR}/sam3d+fpose/vggt_single_image/camera.json}"
 FOREGROUND_SAMPLES="${FOREGROUND_SAMPLES:-100000}"
 RENDER_DEVICE="${RENDER_DEVICE:-${ROBOSNAP_DEVICE:-cuda:0}}"
-
-export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
-export PATH="$(dirname "${PY_RENDER}"):${PATH}"
-export PYTHONUTF8=1
-export LANG=C.UTF-8
-export LC_ALL=C.UTF-8
-export PYOPENGL_PLATFORM="${PYOPENGL_PLATFORM:-egl}"
-export MAX_JOBS="${MAX_JOBS:-1}"
 
 exec "${PY_RENDER}" -m robosnap.rendering.render_layered_scene \
   --foreground "${FOREGROUND}" \

@@ -800,6 +800,7 @@ def main() -> int:
     args = parse_args()
     args.refinement_dir.mkdir(parents=True, exist_ok=True)
     args.output_foreground.parent.mkdir(parents=True, exist_ok=True)
+    args.output_foreground.unlink(missing_ok=True)
 
     status = {
         "status": "preparing",
@@ -912,9 +913,6 @@ def main() -> int:
             status["status"] = "sf_invalid"
             status["reason"] = f"Fixed two-pass physical refinement failed: {exc}"
 
-    if status["status"] != "sf_ok":
-        shutil.copy2(args.input_foreground, args.output_foreground)
-
     reproducibility = reproducibility_record(args)
     status["reproducibility"] = reproducibility
     (args.refinement_dir / "reproducibility.json").write_text(
@@ -925,7 +923,8 @@ def main() -> int:
         json.dumps(status, indent=2),
         encoding="utf-8",
     )
-    print(f"[sim-ready] wrote {args.output_foreground}")
+    if status["status"] == "sf_ok":
+        print(f"[sim-ready] wrote {args.output_foreground}")
     print(f"[sim-ready] wrote {args.refinement_dir / 'status.json'}")
     return 0 if status["status"] == "sf_ok" else 1
 

@@ -30,74 +30,22 @@ components:
     redistribution_review: "Required before public release; review territory, hosted-service, attribution, and acceptable-use terms."
     notes: P3-SAM also requires `third_party/Hunyuan3D-Part/XPart/partgen` and a Sonata checkpoint/cache. LICENSE and NOTICE are preserved from the local upstream snapshot; review the Hunyuan community license terms before public release.
 
-  - name: DiffusionLight
-    release_path: third_party/DiffusionLight
-    local_source: staged internal snapshot; not part of the GUI-first release
-    status: synced_filtered_source_snapshot
-    required_for: legacy/background generation path; to be replaced by Lyra in release pipeline
-    notes: temp_inpaint_iterative and runtime outputs are excluded.
-
-  - name: FoundationPose
-    release_path: third_party/FoundationPose
-    local_source: staged internal snapshot; not part of the GUI-first release
-    status: synced_filtered_source_snapshot
-    required_for: pose/refinement path using VGGT/FPOSE
-    notes: weights and demo_data should stay out of git/checkpoints.
-
   - name: vggt
     release_path: third_party/vggt
-    local_source: staged internal snapshot; not part of the GUI-first release
-    status: synced_filtered_source_snapshot
+    local_source: https://github.com/facebookresearch/vggt.git
+    source_commit: a288dd0f14786c93483e45524328726ab7b1b4ce
+    status: fetched_by_pinned_installer
     required_for: VGGT single-image depth/point cloud used by ICP refinement
-    notes: outputs are excluded.
-
+    license: "VGGT License (custom)"
+    license_file: third_party/vggt/LICENSE.txt
+    notes: Source is fetched by scripts/setup_auto_sources.sh; outputs and weights are excluded.
 
   - name: lyra
     release_path: third_party/lyra
     local_source: https://github.com/nv-tlabs/lyra
-    status: synced_filtered_public_source_snapshot_with_recursive_submodules
-    required_for: real Lyra-2 background/world generation and video-to-GS reconstruction
-    notes: Includes Lyra's depth_anything_3, salad, and vipe submodules at the upstream pinned commits; weights remain under checkpoints/lyra or the Lyra checkpoint layout. RoboSnap currently wraps Lyra-2 Step 2 (`vipe_da3_gs_recon`) for video-to-Gaussian reconstruction.
-  - name: vipe
-    release_path: third_party/vipe
-    local_source: staged internal snapshot; not part of the GUI-first release
-    status: synced_filtered_source_snapshot
-    required_for: VIPE compatibility helper and camera/depth artifacts
-    notes: Kept as a compatibility helper; the real Lyra repo lives in third_party/lyra.
-
-  - name: sam3d-vggt-icp
-    release_path: robosnap/alignment/run_sam3d_vggt_icp.py
-    local_source: staged internal script; not part of the GUI-first release
-    status: copied_first_party_script_parameterized
-    required_for: fixed-scale ICP pose refinement against VGGT points
-
-  - name: vggt-single-image-wrapper
-    release_path: robosnap/alignment/run_vggt_single_image.py
-    local_source: staged internal snapshot; not part of the GUI-first release/run_scene_droid_single_depth.py
-    status: copied_first_party_script_parameterized
-    required_for: VGGT single-image depth and point-cloud generation before ICP
-
-  - name: foundationpose-from-vggt-wrapper
-    release_path: robosnap/pose/run_foundationpose_from_vggt.py
-    local_source: staged internal script; not part of the GUI-first release
-    status: copied_first_party_script_parameterized_local_conversion
-    required_for: optional FoundationPose pose estimation using VGGT depth
-
-  - name: foundationpose-runner
-    release_path: robosnap/pose/foundationpose.py
-    local_source: staged internal script; not part of the GUI-first release
-    status: copied_first_party_script_parameterized
-    required_for: optional FoundationPose pose estimation
-
-  - name: compose-scene-vggt
-    release_path: robosnap/alignment/compose_scene_vggt.py
-    local_source: staged internal script; not part of the GUI-first release
-    status: copied_first_party_script
-    required_for: visualizing FoundationPose/SAM3D object poses on VGGT point clouds
-
-  - name: Grounded-SAM-2
-    release_path: third_party/Grounded-SAM-2
-    local_source: staged collaborator snapshot; not part of the GUI-first release
-    status: synced_filtered_source_snapshot
-    required_for: collaborator auto ground/surface/object mask segmentation via GroundingDINO, Florence-2, and SAM2
-    notes: Source snapshot from git@github.com:PointsCoder/Grounded-SAM-2.git at 13683a85d287b0c12a6d2a504e034206da29bb6b. Checkpoints and demo videos are excluded; use the upstream download scripts or RoboSnap checkpoints for SAM2/GroundingDINO weights. RoboSnap preprocess wrappers are intentionally not ported yet.
+    source_commit: 87f79a52b81b366d1d4aa3a526aa12e54207c998
+    status: fetched_by_pinned_installer_and_patched
+    required_for: Lyra-2 exploration video generation and DA3 Gaussian reconstruction
+    license: "NVIDIA model/source license"
+    license_file: third_party/lyra/LICENSE
+    notes: Recursive submodules are fetched and third_party/patches/lyra2-4090-offload.patch is applied; weights remain under checkpoints/.

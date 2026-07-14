@@ -9,7 +9,13 @@ import pytest
 from PIL import Image
 
 from robosnap.pipeline.auto_layered_scene import preprocess_cache_valid
-from robosnap.preprocess.auto_segment_image import load_objects, run_inpaint, save_mask_products, sha256_file
+from robosnap.preprocess.auto_segment_image import (
+    expand_command_template,
+    load_objects,
+    run_inpaint,
+    save_mask_products,
+    sha256_file,
+)
 
 
 def write_rgba_mask(path, mask: np.ndarray) -> None:
@@ -83,6 +89,21 @@ def test_mask_builder_does_not_expand_to_image_region(tmp_path) -> None:
     assert "semantic_lower_region" not in stats
 
 
+def test_provider_command_template_preserves_paths_with_spaces() -> None:
+    command = expand_command_template(
+        'python provider.py --image "{image}" --output={output}',
+        image="/tmp/input scene/image.png",
+        output="/tmp/output scene/result.json",
+    )
+    assert command == [
+        "python",
+        "provider.py",
+        "--image",
+        "/tmp/input scene/image.png",
+        "--output=/tmp/output scene/result.json",
+    ]
+
+
 def test_extra_semantic_mask_is_merged(tmp_path) -> None:
     height, width = 40, 60
     image_path = tmp_path / "image.png"
@@ -139,7 +160,6 @@ def test_inpaint_provider_status_is_preserved(tmp_path) -> None:
             f"{sys.executable} {provider} --image {{image}} --mask {{mask}} "
             "--prompt {prompt} --output {output} --status {status}"
         ),
-        dry_run=False,
     )
 
     run_inpaint(args, tmp_path, {"inpaint_mask": str(mask_path)})
@@ -158,7 +178,6 @@ def test_inpainting_is_fail_closed_without_provider(tmp_path) -> None:
         image=image_path,
         inpaint_prompt="remove the masked foreground",
         inpaint_command=None,
-        dry_run=False,
     )
 
     with pytest.raises(RuntimeError, match="No --inpaint-command"):

@@ -12,7 +12,6 @@ ARTICULATE_PYTHON="${ARTICULATE_PYTHON:-3.10}"
 TORCH_CU_INDEX="${TORCH_CU_INDEX:-https://download.pytorch.org/whl/cu121}"
 PYG_WHEEL_INDEX="${PYG_WHEEL_INDEX:-https://data.pyg.org/whl/torch-2.4.0+cu121.html}"
 EXTRA_INDEX_URLS="${EXTRA_INDEX_URLS:-https://pypi.ngc.nvidia.com https://download.pytorch.org/whl/cu121}"
-DRY_RUN="${DRY_RUN:-0}"
 YES="${YES:-0}"
 INSTALL_GUI=1
 INSTALL_ASSET=1
@@ -27,7 +26,6 @@ Usage: bash scripts/install.sh [options]
 Create the native three-env RoboSnap GUI setup and write configs/gui.env.
 
 Options:
-  --dry-run              Print commands without executing them.
   -y, --yes              Do not prompt before creating/installing envs.
   --skip-gui             Skip the GUI/video segmentation env.
   --skip-asset           Skip the mask-to-3D asset env.
@@ -49,7 +47,6 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dry-run) DRY_RUN=1 ;;
     -y|--yes) YES=1 ;;
     --skip-gui) INSTALL_GUI=0 ;;
     --skip-asset) INSTALL_ASSET=0 ;;
@@ -77,13 +74,11 @@ run() {
   printf ' %q' "$@"
   printf '
 '
-  if [[ "${DRY_RUN}" != "1" ]]; then
-    "$@"
-  fi
+  "$@"
 }
 
 confirm() {
-  if [[ "${YES}" == "1" || "${DRY_RUN}" == "1" ]]; then
+  if [[ "${YES}" == "1" ]]; then
     return 0
   fi
   read -r -p "Create/install RoboSnap conda envs now? [y/N] " reply
@@ -100,10 +95,6 @@ env_exists() {
 create_env() {
   local env_name="$1"
   local py_version="$2"
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    run "${CONDA_BIN}" create -y -n "${env_name}" "python=${py_version}"
-    return 0
-  fi
   if env_exists "${env_name}"; then
     log "conda env exists: ${env_name}"
   else
@@ -144,14 +135,10 @@ install_articulate() {
 
 conda_python_path() {
   local env_name="$1"
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    printf '/path/to/miniconda3/envs/%s/bin/python\n' "${env_name}"
-  else
-    "${CONDA_BIN}" run -n "${env_name}" python - <<'PY'
+  "${CONDA_BIN}" run -n "${env_name}" python - <<'PY'
 import sys
 print(sys.executable)
 PY
-  fi
 }
 
 write_gui_env() {
@@ -168,9 +155,6 @@ write_gui_env() {
   py_asset="$(conda_python_path "${ASSET_ENV}")"
   py_art="$(conda_python_path "${ARTICULATE_ENV}")"
   log "write ${env_file}"
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    return 0
-  fi
   cat > "${env_file}" <<EOF
 PY_SAM3=${py_gui}
 PY_ASSET=${py_asset}
@@ -182,12 +166,8 @@ EOF
 }
 
 if ! command -v "${CONDA_BIN}" >/dev/null 2>&1; then
-  if [[ "${DRY_RUN}" == "1" ]]; then
-    log "conda not found; dry-run will still print planned commands"
-  else
-    echo "conda not found. Set CONDA_EXE=/path/to/conda or activate conda first." >&2
-    exit 127
-  fi
+  echo "conda not found. Set CONDA_EXE=/path/to/conda or activate conda first." >&2
+  exit 127
 fi
 
 cd "${ROOT}"

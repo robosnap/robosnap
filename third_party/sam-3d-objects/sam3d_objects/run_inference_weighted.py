@@ -45,10 +45,13 @@ import numpy as np
 import torch
 from loguru import logger
 
-# Import inference code
-sys.path.append("notebook")
-from inference import Inference
-from load_images_and_masks import load_images_and_masks_from_path
+# Import inference code.
+_SAM3D_ROOT = Path(__file__).resolve().parents[1]
+_sam3d_root_str = str(_SAM3D_ROOT)
+if _sam3d_root_str not in sys.path:
+    sys.path.insert(0, _sam3d_root_str)
+from sam3d_objects.inference import Inference
+from sam3d_objects.load_images_and_masks import load_images_and_masks_from_path
 
 from sam3d_objects.utils.cross_attention_logger import CrossAttentionLogger
 from sam3d_objects.utils.latent_weighting import WeightingConfig, LatentWeightManager
@@ -3132,4 +3135,3 @@ Examples:
 
 if __name__ == "__main__":
     main()
-

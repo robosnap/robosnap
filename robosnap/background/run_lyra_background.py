@@ -55,7 +55,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint-dir", default=os.environ.get("CHECKPOINT_DIR", root / "checkpoints"))
     parser.add_argument("--conda-prefix", default=os.environ.get("PY_VIPE_CONDA_PREFIX", os.environ.get("PY_LYRA_CONDA_PREFIX")))
     parser.add_argument("--visualize", action="store_true", help="Ask VIPE to save visualization videos.")
-    parser.add_argument("--dry-run", action="store_true", help="Print the command without running it.")
     return parser.parse_args()
 
 
@@ -90,8 +89,6 @@ def main() -> int:
 
     print("[INFO] Running VIPE compatibility background path:")
     print(" ".join(cmd))
-    if args.dry_run:
-        return 0
     proc = subprocess.run(cmd, env=build_env(args, vipe_dir), cwd=str(vipe_dir))
     return proc.returncode
 
