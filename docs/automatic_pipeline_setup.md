@@ -53,10 +53,10 @@ INPUT_IMAGE=/path/to/image.png OUTPUT_DIR=/path/to/result \
 To bypass automatic object discovery, set `OBJECT_FILE` to a text file with one segmentation prompt per line or a JSON file with an `objects` list. A custom `VLM_COMMAND` must write:
 
 ~~~json
-{"objects":[{"name":"cup","prompt":"blue cup on the table","fallback_prompt":"blue cup","bbox_xyxy":[0.1,0.2,0.3,0.5]}]}
+{"objects":[{"name":"table","prompt":"complete table","fallback_prompt":"table","bbox_xyxy":[0.1,0.3,0.9,1.0],"support_parent_id":-1,"support_relation":"none"},{"name":"cup","prompt":"blue cup on the table","fallback_prompt":"blue cup","bbox_xyxy":[0.4,0.4,0.5,0.7],"support_parent_id":0,"support_relation":"on"}]}
 ~~~
 
-`bbox_xyxy` uses normalized image coordinates. `INPAINT_COMMAND` receives `{image}`, `{mask}`, `{prompt}`, `{output}`, and `{status}` placeholders. See `configs/auto_pipeline.env.example` for both command templates.
+`bbox_xyxy` uses normalized image coordinates. `support_parent_id` references an earlier object or is `-1`; `support_relation` is `on`, `inside`, or `none`. `INPAINT_COMMAND` receives `{image}`, `{mask}`, `{prompt}`, `{output}`, and `{status}` placeholders. See `configs/auto_pipeline.env.example` for both command templates.
 
 ## Docker
 

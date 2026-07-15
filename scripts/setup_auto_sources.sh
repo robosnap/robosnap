@@ -88,13 +88,13 @@ fetch_source() {
 
 apply_lyra_patch() {
   local lyra2="${LYRA_DIR}/Lyra-2"
-  local patch_file="${ROOT}/third_party/patches/lyra2-4090-offload.patch"
+  local patch_file="${ROOT}/third_party/patches/lyra2-low-memory-inference.patch"
   if [[ ! -f "${patch_file}" ]]; then
     echo "Missing Lyra compatibility patch: ${patch_file}" >&2
     exit 1
   fi
   if git -C "${lyra2}" apply --check "${patch_file}"; then
-    log "applying Lyra 4090/offload compatibility patch"
+    log "applying Lyra low-memory inference compatibility patch"
     git -C "${lyra2}" apply "${patch_file}"
   elif git -C "${lyra2}" apply --reverse --check "${patch_file}"; then
     log "Lyra compatibility patch is already applied"

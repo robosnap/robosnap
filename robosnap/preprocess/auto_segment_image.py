@@ -32,11 +32,10 @@ from robosnap.preprocess.sam3_mask_recovery import (
 
 
 DEFAULT_VLM_PROMPT = """Inspect the image and return a JSON object with an objects list.
-List every separate foreground asset needed to reconstruct the interactive scene, including the complete support furniture, every item on or against it, partially occluded or image-border-truncated objects, and near dividers or occluders that intersect the workspace.
+List every separate foreground asset needed to reconstruct the interactive scene, including complete support furniture, every item on or against it, partially occluded or image-border-truncated objects, and nearby dividers or occluders that intersect the workspace.
 Do not list walls, floor, ceiling, windows, distant people, or distant room furniture.
-Use one entry per physical instance with name and a location-aware prompt suitable for text-prompted segmentation.
-For each entry also return a concise fallback_prompt containing only the object category and relative position.
-Also return bbox_xyxy as normalized [x_min, y_min, x_max, y_max] coordinates for each object.
+Order direct physical supporters before their children. Use one entry per physical instance with name, a location-aware segmentation prompt, a concise fallback_prompt, and normalized bbox_xyxy coordinates.
+For every entry set support_parent_id to the zero-based index of its direct visible physical supporter, or -1 when it has none. Set support_relation to on, inside, or none. Support relationships may form an arbitrary-depth acyclic hierarchy.
 Return JSON only."""
 
 DEFAULT_INPAINT_PROMPT = """You are an excellent image inpainter and currently are here to help me inpaint the masked image where only the background is reserved and the interactive area is removed.
@@ -84,6 +83,16 @@ def normalize_object_item(item: Any, index: int) -> dict[str, Any]:
         prompt = str(item.get("prompt") or item.get("segmentation_prompt") or item.get("description") or name).strip()
         out = dict(item)
         out.update({"id": index, "name": name, "prompt": prompt})
+        parent = out.get("support_parent_id")
+        if parent is not None:
+            try:
+                out["support_parent_id"] = int(parent)
+            except (TypeError, ValueError):
+                out["support_parent_id"] = -1
+        relation = str(out.get("support_relation") or "none").lower()
+        out["support_relation"] = (
+            relation if relation in {"on", "inside", "none"} else "none"
+        )
         return out
     raise ValueError(f"Unsupported object item at index {index}: {type(item)!r}")
 
@@ -177,6 +186,17 @@ def compact_object_masks(mask_dir: Path, objects: list[dict[str, Any]]) -> list[
         kept.append(updated)
     for tmp, dst in tmp_moves:
         shutil.move(str(tmp), str(dst))
+
+    id_map = {int(obj["source_id"]): int(obj["id"]) for obj in kept}
+    for obj in kept:
+        old_parent = obj.get("support_parent_id")
+        try:
+            old_parent = int(old_parent)
+        except (TypeError, ValueError):
+            old_parent = -1
+        obj["support_parent_id"] = id_map.get(old_parent, -1)
+        if obj["support_parent_id"] < 0:
+            obj["support_relation"] = "none"
     return kept
 
 

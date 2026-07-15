@@ -199,11 +199,10 @@ def load_gravity_camera(scene_dir: Path) -> tuple[np.ndarray, np.ndarray]:
     )
     w2c_gravity = foreground_w2c @ np.linalg.inv(transform_gravity_from_camera)
 
-    camera = json.loads(
-        (vggt_dir(scene_dir) / "camera.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    camera_path = vggt_dir(scene_dir) / "camera.json"
+    if not camera_path.exists():
+        camera_path = scene_dir / "depth" / "camera.json"
+    camera = json.loads(camera_path.read_text(encoding="utf-8"))
     intrinsic = np.asarray(camera["intrinsic_original_pixels"], dtype=np.float64)
     return w2c_gravity, intrinsic
 
@@ -849,10 +848,14 @@ def validate_second_pass_projection(
     root_ids = {int(value) for value in manifest.get("root_object_ids", [])}
     object_ids = [int(obj["id"]) for obj in manifest["objects"]]
     graph = json.loads(Path(manifest["scene_graph_path"]).read_text(encoding="utf-8"))
-    support_parent = {
-        int(edge["source_id"]): int(edge["target_id"])
+    support_edges = {
+        int(edge["source_id"]): edge
         for edge in graph.get("graph", graph).get("edges", [])
         if edge.get("relation", "Support") == "Support"
+    }
+    support_parent = {
+        child_id: int(edge["target_id"])
+        for child_id, edge in support_edges.items()
     }
 
     states = {}
@@ -890,6 +893,8 @@ def validate_second_pass_projection(
             "obj_dir": obj_dir,
             "source_mesh": source_mesh,
             "mesh": mesh,
+            "sampled": sampled,
+            "mask_bbox": mask_bbox,
             "before": before,
             "after": after,
             "before_iou": float(before_iou),
@@ -898,81 +903,121 @@ def validate_second_pass_projection(
             "translation": translation,
             "rotation": rotation,
             "accepted": bool(accepted),
-            "reprojection_accepted": bool(accepted),
             "support_parent_id": support_parent.get(object_id),
-            "support_before": None,
-            "support_after": None,
-            "support_before_valid": object_id not in support_parent,
-            "support_after_valid": object_id not in support_parent,
-            "support_preserved": object_id not in support_parent,
-            "physical_override": False,
         }
 
-    for _ in range(len(object_ids)):
-        changed = False
-        for child_id, parent_id in support_parent.items():
-            if child_id not in states or parent_id not in states:
-                continue
-            child = states[child_id]
-            parent = states[parent_id]
-            parent_selected = (
-                parent["after"] if parent["accepted"] else parent["before"]
+    ordered_ids = []
+    pending = set(object_ids)
+    while pending:
+        ready = sorted(
+            object_id
+            for object_id in pending
+            if support_parent.get(object_id) not in pending
+        )
+        if not ready:
+            raise ValueError("Support graph contains a cycle")
+        ordered_ids.extend(ready)
+        pending.difference_update(ready)
+
+    selected_poses: dict[int, np.ndarray] = {}
+    selections: dict[int, dict] = {}
+
+    for object_id in ordered_ids:
+        state = states[object_id]
+        parent_id = support_parent.get(object_id)
+        if parent_id is None:
+            accepted = bool(state["accepted"])
+            selected_pose = state["after"] if accepted else state["before"]
+            selected_iou = state["after_iou"] if accepted else state["before_iou"]
+            selections[object_id] = {
+                "selected": "sf_second_pass" if accepted else "projection_fallback",
+                "pose": selected_pose,
+                "iou": float(selected_iou),
+                "support": None,
+                "support_valid": True,
+                "physical_override": False,
+                "support_before": None,
+            }
+            selected_poses[object_id] = selected_pose
+            continue
+
+        if parent_id not in states or parent_id not in selected_poses:
+            raise ValueError(
+                f"Support parent {parent_id} for object {object_id} is unavailable"
             )
-            before_metrics = support_contact_metrics(
-                child["mesh"],
-                child["before"],
-                parent["mesh"],
-                parent["before"],
+        parent = states[parent_id]
+        parent_pose = selected_poses[parent_id]
+        candidates = []
+
+        def add_candidate(label: str, pose: np.ndarray) -> None:
+            try:
+                projected = project_bbox_xyxy(
+                    state["sampled"], pose, w2c, intrinsic
+                )
+                metrics = support_contact_metrics(
+                    state["mesh"], pose, parent["mesh"], parent_pose
+                )
+            except (ValueError, IndexError, np.linalg.LinAlgError):
+                return
+            candidates.append(
+                {
+                    "selected": label,
+                    "pose": pose,
+                    "iou": float(bbox_iou(state["mask_bbox"], projected)),
+                    "support": metrics,
+                    "support_valid": support_relation_valid(metrics),
+                }
             )
-            after_metrics = support_contact_metrics(
-                child["mesh"],
-                child["after"],
-                parent["mesh"],
-                parent_selected,
-            )
-            before_valid = support_relation_valid(before_metrics)
-            after_valid = support_relation_valid(after_metrics)
-            preserved = support_relation_preserved(
-                before_metrics,
-                after_metrics,
-            )
-            physical_override = bool(not before_valid and after_valid)
-            next_accepted = bool(
-                (child["reprojection_accepted"] and preserved)
-                or physical_override
-            )
-            child["support_before"] = before_metrics
-            child["support_after"] = after_metrics
-            child["support_before_valid"] = before_valid
-            child["support_after_valid"] = after_valid
-            child["support_preserved"] = (
-                after_valid if next_accepted else before_valid
-            )
-            child["physical_override"] = bool(
-                physical_override and next_accepted
-            )
-            if child["accepted"] != next_accepted:
-                child["accepted"] = next_accepted
-                changed = True
-        if not changed:
-            break
+
+        add_candidate("sf_second_pass", state["after"])
+        add_candidate("projection_fallback", state["before"])
+
+        valid_candidates = [
+            candidate for candidate in candidates if candidate["support_valid"]
+        ]
+        pool = valid_candidates or candidates
+        if not pool:
+            raise ValueError(f"No final pose candidate for object {object_id}")
+        priority = {
+            "sf_second_pass": 1,
+            "projection_fallback": 0,
+        }
+        selected = max(
+            pool,
+            key=lambda candidate: (
+                candidate["iou"],
+                priority[candidate["selected"]],
+            ),
+        )
+        before_metrics = support_contact_metrics(
+            state["mesh"], state["before"], parent["mesh"], parent["before"]
+        )
+        selected["physical_override"] = bool(
+            not support_relation_valid(before_metrics)
+            and selected["support_valid"]
+        )
+        selected["support_before"] = before_metrics
+        selections[object_id] = selected
+        selected_poses[object_id] = selected["pose"]
 
     records = []
     for object_id in object_ids:
         state = states[object_id]
-        accepted = bool(state["accepted"])
-        selected_pose = state["after"] if accepted else state["before"]
-        selected = "sf_second_pass" if accepted else "projection_fallback"
-        selected_support = (
-            state["support_after"] if accepted else state["support_before"]
-        )
-        support_valid = bool(
-            state["support_parent_id"] is None
-            or (
-                selected_support is not None
-                and support_relation_valid(selected_support)
+        selection = selections[object_id]
+        selected_pose = selection["pose"]
+        selected = selection["selected"]
+        selected_support = selection["support"]
+        support_valid = bool(selection["support_valid"])
+        before_support = selection["support_before"]
+        after_support = None
+        parent_id = state["support_parent_id"]
+        if parent_id is not None:
+            after_support = support_contact_metrics(
+                state["mesh"],
+                state["after"],
+                states[parent_id]["mesh"],
+                selected_poses[parent_id],
             )
-        )
         shutil.copy2(
             state["source_mesh"],
             state["obj_dir"] / f"{output_mesh_name}.glb",
@@ -987,19 +1032,24 @@ def validate_second_pass_projection(
                 "object_id": object_id,
                 "selected": selected,
                 "is_root": object_id in root_ids,
-                "support_parent_id": state["support_parent_id"],
+                "support_parent_id": parent_id,
                 "support_preserved": support_valid,
-                "support_before_valid": bool(state["support_before_valid"]),
-                "support_after_valid": bool(state["support_after_valid"]),
-                "support_before": state["support_before"],
-                "support_after": state["support_after"],
-                "support_selected": selected_support,
-                "physical_override": bool(
-                    state["physical_override"] and accepted
+                "support_before_valid": bool(
+                    before_support is None or support_relation_valid(before_support)
                 ),
+                "support_after_valid": bool(
+                    after_support is None or support_relation_valid(after_support)
+                ),
+                "support_before": before_support,
+                "support_after": after_support,
+                "support_selected": selected_support,
+                "physical_override": bool(selection["physical_override"]),
                 "before_reprojection_iou": state["before_iou"],
                 "sf_second_pass_reprojection_iou": state["after_iou"],
-                "reprojection_ratio": state["ratio"],
+                "selected_reprojection_iou": float(selection["iou"]),
+                "reprojection_ratio": float(
+                    selection["iou"] / max(state["before_iou"], 1e-12)
+                ),
                 "translation_change_m": state["translation"],
                 "rotation_change_deg": state["rotation"],
             }
@@ -1015,21 +1065,24 @@ def validate_second_pass_projection(
     accepted_ids = [
         record["object_id"]
         for record in records
-        if record["selected"] == "sf_second_pass"
+        if record["selected"].startswith("sf_second_pass")
     ]
     supported_records = [
         record for record in records if record["support_parent_id"] is not None
     ]
+    all_support_valid = all(
+        bool(record["support_preserved"]) for record in supported_records
+    )
     report = {
-        "status": "ok",
-        "quality_gate": "reprojection_and_absolute_support_relation",
+        "status": "ok" if all_support_valid else "invalid",
+        "quality_gate": "hierarchical_support_and_reprojection_selection",
         "output": str(output_path),
         "object_count": len(records),
         "accepted_second_pass_ids": accepted_ids,
         "fallback_ids": [
             record["object_id"]
             for record in records
-            if record["selected"] != "sf_second_pass"
+            if not record["selected"].startswith("sf_second_pass")
         ],
         "support_relation_count": len(supported_records),
         "preserved_support_relation_count": sum(
@@ -1044,14 +1097,7 @@ def validate_second_pass_projection(
             )
         ),
         "mean_final_reprojection_iou": float(
-            np.mean(
-                [
-                    record["sf_second_pass_reprojection_iou"]
-                    if record["selected"] == "sf_second_pass"
-                    else record["before_reprojection_iou"]
-                    for record in records
-                ]
-            )
+            np.mean([record["selected_reprojection_iou"] for record in records])
         ),
         "records": records,
     }

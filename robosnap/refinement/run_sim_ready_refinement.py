@@ -88,6 +88,23 @@ def read_object_names(path: Path | None) -> list[str]:
     return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+
+def read_object_metadata(path: Path) -> dict[int, dict]:
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    items = data.get("objects", []) if isinstance(data, dict) else data
+    if not isinstance(items, list):
+        return {}
+    result = {}
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            continue
+        object_id = int(item.get("id", index))
+        result[object_id] = item
+    return result
+
+
 def load_gravity_transform(path: Path | None) -> np.ndarray:
     if path is None or not path.exists():
         return np.eye(4, dtype=np.float64)
@@ -282,6 +299,195 @@ def semantic_support_surface(name: str) -> bool:
     return contextual is None and re.search(r"\b(table|desk|counter)\b", text) is not None
 
 
+SUPPORT_RELATION_PATTERN = re.compile(
+    r"\b(sitting on|standing on|placed on|resting on|lying on|spread across|"
+    r"inside|within|atop|upon|on|across|in|at)\b\s+(.+)$"
+)
+TOKEN_ALIASES = {
+    "back": "rear",
+    "central": "center",
+    "centre": "center",
+    "countertop": "counter",
+    "desktop": "desk",
+    "tabletop": "table",
+}
+TOKEN_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "area",
+    "at",
+    "complete",
+    "edge",
+    "back",
+    "bottom",
+    "center",
+    "corner",
+    "front",
+    "including",
+    "left",
+    "near",
+    "of",
+    "on",
+    "rear",
+    "right",
+    "side",
+    "single",
+    "the",
+    "top",
+    "with",
+}
+def normalized_tokens(text: str) -> set[str]:
+    tokens = {
+        TOKEN_ALIASES.get(token, token)
+        for token in re.findall(r"[a-z]+", text.lower())
+    }
+    return tokens - TOKEN_STOPWORDS
+
+
+def support_reference(name: str) -> tuple[str, str] | None:
+    match = SUPPORT_RELATION_PATTERN.search(name.lower())
+    if match is None:
+        return None
+    return match.group(1), match.group(2)
+
+
+def object_identity_text(obj: dict) -> str:
+    label = str(obj.get("label") or "").strip()
+    text = label or str(obj["name"])
+    match = SUPPORT_RELATION_PATTERN.search(text.lower())
+    return text[: match.start()].strip() if match is not None else text
+
+
+def object_mask_bounds(obj: dict) -> tuple[np.ndarray, int] | None:
+    mask_path = Path(obj["obj_dir"]) / "mask.png"
+    if not mask_path.exists():
+        return None
+    mask = load_binary_mask(mask_path)
+    rows, cols = np.nonzero(mask)
+    if len(rows) == 0:
+        return None
+    bounds = np.array(
+        [cols.min(), rows.min(), cols.max() + 1, rows.max() + 1],
+        dtype=np.float64,
+    )
+    return bounds, int(mask.sum())
+
+
+def bbox_containment(child: np.ndarray, parent: np.ndarray) -> float:
+    intersection = np.maximum(
+        0.0,
+        np.minimum(child[2:], parent[2:]) - np.maximum(child[:2], parent[:2]),
+    )
+    child_area = float(np.prod(np.maximum(child[2:] - child[:2], 1.0)))
+    return float(np.prod(intersection) / child_area)
+
+
+def fine_support_relation(cue: str) -> str:
+    if cue in {"in", "inside", "within"}:
+        return "Contain"
+    return "Stack"
+
+
+def semantic_support_parent(
+    obj: dict,
+    objects: list[dict],
+    support_ids: set[int],
+    mask_bounds: dict[int, tuple[np.ndarray, int] | None],
+) -> tuple[int, str] | None:
+    reference = support_reference(obj["name"])
+    if reference is None:
+        return None
+    cue, clause = reference
+    query_tokens = normalized_tokens(clause)
+    if not query_tokens:
+        return None
+
+    object_id = int(obj["id"])
+    child_mask = mask_bounds.get(object_id)
+    scored: list[tuple[float, int, str]] = []
+    for parent in objects:
+        parent_id = int(parent["id"])
+        if parent_id == object_id:
+            continue
+        identity = object_identity_text(parent)
+        identity_tokens = normalized_tokens(identity)
+        overlap = query_tokens & identity_tokens
+        if not overlap:
+            continue
+
+        containment = 0.0
+        parent_mask = mask_bounds.get(parent_id)
+        if child_mask is not None and parent_mask is not None:
+            containment = bbox_containment(child_mask[0], parent_mask[0])
+        exact_identity = identity.lower() in clause.lower()
+        score = 20.0 * len(overlap) + 10.0 * containment
+        score += 30.0 if exact_identity else 0.0
+        score += 2.0 if parent_id in support_ids else 0.0
+        scored.append(
+            (
+                score,
+                parent_id,
+                fine_support_relation(cue),
+            )
+        )
+
+    if not scored:
+        return None
+    _, parent_id, fine_relation = max(scored)
+    return parent_id, fine_relation
+
+
+def semantic_root_support_parent(
+    obj: dict,
+    objects: list[dict],
+    support_ids: set[int],
+    mask_bounds: dict[int, tuple[np.ndarray, int] | None],
+) -> int | None:
+    child_tokens = normalized_tokens(obj["name"])
+    if not child_tokens:
+        return None
+
+    child_mask = mask_bounds.get(int(obj["id"]))
+    scored: list[tuple[float, int]] = []
+    for parent in objects:
+        parent_id = int(parent["id"])
+        if parent_id not in support_ids:
+            continue
+        parent_tokens = normalized_tokens(object_identity_text(parent))
+        if not parent_tokens:
+            continue
+        overlap = child_tokens & parent_tokens
+        coverage = len(overlap) / len(parent_tokens)
+        if coverage < 0.6:
+            continue
+        containment = 0.0
+        parent_mask = mask_bounds.get(parent_id)
+        if child_mask is not None and parent_mask is not None:
+            containment = bbox_containment(child_mask[0], parent_mask[0])
+        score = coverage + 0.05 * len(overlap) + 0.1 * containment
+        scored.append((float(score), parent_id))
+
+    if not scored:
+        return None
+    return max(scored)[1]
+
+
+def creates_support_cycle(
+    child_id: int,
+    parent_id: int,
+    parent_by_child: dict[int, int],
+) -> bool:
+    current = parent_id
+    visited = set()
+    while current in parent_by_child and current not in visited:
+        if current == child_id:
+            return True
+        visited.add(current)
+        current = parent_by_child[current]
+    return current == child_id
+
+
 def structural_root(name: str) -> bool:
     return re.search(
         r"\b(divider|partition|wall|floor|ceiling|window|door|room structure)\b",
@@ -314,24 +520,58 @@ def mark_support_objects(objects: list[dict], support_mask_path: Path | None) ->
     if support_mask_path is not None and support_mask_path.exists():
         support_mask = load_binary_mask(support_mask_path)
 
-    support_ids: list[int] = []
+    by_id: dict[int, dict] = {}
+    overlap_pixels: dict[int, int] = {}
     for obj in objects:
+        object_id = int(obj["id"])
+        by_id[object_id] = obj
         score = 0.0
+        overlap = 0
         mask_path = Path(obj["obj_dir"]) / "mask.png"
         if support_mask is not None and mask_path.exists():
             object_mask = load_binary_mask(mask_path)
             if object_mask.shape == support_mask.shape and object_mask.any():
-                score = float(np.logical_and(object_mask, support_mask).sum() / object_mask.sum())
+                overlap = int(np.logical_and(object_mask, support_mask).sum())
+                score = float(overlap / object_mask.sum())
+        overlap_pixels[object_id] = overlap
         obj["support_mask_coverage"] = score
-        obj["is_table"] = score >= 0.5
-        if obj["is_table"]:
-            support_ids.append(int(obj["id"]))
+        obj["support_mask_overlap_pixels"] = overlap
+        obj["is_table"] = False
+
+    structured_children: set[int] = set()
+    structured_parents: set[int] = set()
+    object_ids = set(by_id)
+    for obj in objects:
+        relation = str(obj.get("support_relation") or "none").lower()
+        try:
+            parent_id = int(obj.get("support_parent_id", -1))
+        except (TypeError, ValueError):
+            parent_id = -1
+        if relation in {"on", "inside"} and parent_id in object_ids:
+            structured_children.add(int(obj["id"]))
+            structured_parents.add(parent_id)
+
+    support_ids = sorted(structured_parents - structured_children)
+    if not support_ids:
+        support_ids = sorted(
+            int(obj["id"])
+            for obj in objects
+            if semantic_support_surface(object_identity_text(obj))
+        )
 
     if not support_ids:
-        for obj in objects:
-            obj["is_table"] = semantic_support_surface(obj["name"])
-            if obj["is_table"]:
-                support_ids.append(int(obj["id"]))
+        max_overlap = max(overlap_pixels.values(), default=0)
+        if max_overlap > 0:
+            support_ids = sorted(
+                object_id
+                for object_id, overlap in overlap_pixels.items()
+                if overlap >= 0.01 * max_overlap
+                and by_id[object_id]["support_mask_coverage"] >= 0.5
+            )
+
+    support_id_set = set(support_ids)
+    for obj in objects:
+        obj["is_table"] = int(obj["id"]) in support_id_set
     return support_ids
 
 
@@ -348,51 +588,166 @@ def object_world_bounds(obj: dict) -> np.ndarray | None:
 
 
 def infer_scene_graph_edges(objects: list[dict], support_ids: list[int]) -> list[dict]:
+    support_id_set = set(support_ids)
     by_id = {int(obj["id"]): obj for obj in objects}
-    support_bounds = {obj_id: object_world_bounds(by_id[obj_id]) for obj_id in support_ids}
+    object_ids = set(by_id)
+    world_bounds = {
+        object_id: object_world_bounds(obj)
+        for object_id, obj in by_id.items()
+    }
+    mask_bounds = {
+        object_id: object_mask_bounds(obj)
+        for object_id, obj in by_id.items()
+    }
     edges: list[dict] = []
-    explicit_pattern = re.compile(
-        r"\b(on|atop|upon|sitting on|standing on|placed on|resting on|lying on)\b.*"
-        r"\b(table|desk|tabletop|desktop|counter)\b"
-    )
+    parent_by_child: dict[int, int] = {}
 
-    for obj in objects:
-        object_id = int(obj["id"])
-        if object_id in support_ids or structural_root(obj["name"]):
-            continue
-        bounds = object_world_bounds(obj)
-        explicit_support = explicit_pattern.search(obj["name"].lower()) is not None
-        border_truncated = lower_side_border_truncated(obj)
-        obj["border_truncated"] = border_truncated
-        if border_truncated and not explicit_support:
-            continue
-        candidates: list[tuple[float, int]] = []
-        for support_id, parent_bounds in support_bounds.items():
-            if bounds is None or parent_bounds is None:
-                if explicit_support:
-                    candidates.append((0.0, support_id))
-                continue
-            gap_x = max(parent_bounds[0, 0] - bounds[1, 0], bounds[0, 0] - parent_bounds[1, 0], 0.0)
-            gap_y = max(parent_bounds[0, 1] - bounds[1, 1], bounds[0, 1] - parent_bounds[1, 1], 0.0)
-            xy_gap = float(np.hypot(gap_x, gap_y))
-            support_span = float(np.max(parent_bounds[1, :2] - parent_bounds[0, :2]))
-            near_xy = xy_gap <= max(0.05, 0.08 * support_span)
-            support_top = float(parent_bounds[1, 2])
-            near_z = bounds[0, 2] <= support_top + 0.25 and bounds[1, 2] >= support_top - 0.35
-            if explicit_support or (near_xy and near_z):
-                candidates.append((xy_gap + abs(float(bounds[0, 2]) - support_top), support_id))
-        if not candidates:
-            continue
-        _, support_id = min(candidates)
+    def add_edge(
+        child_id: int,
+        parent_id: int,
+        fine_relation: str,
+        inference: str,
+    ) -> bool:
+        if (
+            child_id == parent_id
+            or child_id in parent_by_child
+            or child_id not in object_ids
+            or parent_id not in object_ids
+            or creates_support_cycle(child_id, parent_id, parent_by_child)
+        ):
+            return False
+        parent_by_child[child_id] = parent_id
         edges.append(
             {
-                "source_id": object_id,
-                "target_id": support_id,
+                "source_id": child_id,
+                "target_id": parent_id,
                 "relation": "Support",
-                "fine_relation": "Stack",
-                "inference": "caption" if explicit_support else "geometry",
+                "fine_relation": fine_relation,
+                "inference": inference,
             }
         )
+        return True
+
+    for obj in objects:
+        child_id = int(obj["id"])
+        relation = str(obj.get("support_relation") or "").lower()
+        parent_value = obj.get("support_parent_id")
+        if relation not in {"on", "inside", "support", "contain"}:
+            continue
+        try:
+            parent_id = int(parent_value)
+        except (TypeError, ValueError):
+            continue
+        fine_relation = "Contain" if relation in {"inside", "contain"} else "Stack"
+        add_edge(child_id, parent_id, fine_relation, "vlm_scene_graph")
+
+    for obj in objects:
+        child_id = int(obj["id"])
+        if (
+            child_id in parent_by_child
+            or child_id in support_id_set
+            or structural_root(obj["name"])
+        ):
+            continue
+        semantic_parent = semantic_support_parent(
+            obj,
+            objects,
+            support_id_set,
+            mask_bounds,
+        )
+        if semantic_parent is not None:
+            parent_id, fine_relation = semantic_parent
+            add_edge(
+                child_id,
+                parent_id,
+                fine_relation,
+                "caption_reference+mask_geometry",
+            )
+
+    for obj in objects:
+        child_id = int(obj["id"])
+        if (
+            child_id in parent_by_child
+            or child_id in support_id_set
+            or structural_root(obj["name"])
+        ):
+            continue
+        obj["border_truncated"] = lower_side_border_truncated(obj)
+        if obj["border_truncated"]:
+            continue
+        root_parent_id = semantic_root_support_parent(
+            obj,
+            objects,
+            support_id_set,
+            mask_bounds,
+        )
+        if root_parent_id is not None:
+            add_edge(
+                child_id,
+                root_parent_id,
+                "Stack",
+                "caption_root_reference+mask_geometry",
+            )
+
+    for obj in objects:
+        child_id = int(obj["id"])
+        if (
+            child_id in parent_by_child
+            or child_id in support_id_set
+            or structural_root(obj["name"])
+        ):
+            continue
+        obj["border_truncated"] = lower_side_border_truncated(obj)
+        if obj["border_truncated"]:
+            continue
+        child_bounds = world_bounds[child_id]
+        if child_bounds is None:
+            continue
+        child_span = np.maximum(child_bounds[1, :2] - child_bounds[0, :2], 1e-6)
+        child_footprint = float(np.prod(child_span))
+        child_mask = mask_bounds.get(child_id)
+        candidates: list[tuple[float, int]] = []
+        for parent_id in support_id_set:
+            parent = by_id[parent_id]
+            parent_bounds = world_bounds[parent_id]
+            if parent_bounds is None:
+                continue
+            parent_span = np.maximum(
+                parent_bounds[1, :2] - parent_bounds[0, :2],
+                1e-6,
+            )
+            parent_footprint = float(np.prod(parent_span))
+            if parent_footprint <= 1.05 * child_footprint:
+                continue
+            gap_x = max(
+                parent_bounds[0, 0] - child_bounds[1, 0],
+                child_bounds[0, 0] - parent_bounds[1, 0],
+                0.0,
+            )
+            gap_y = max(
+                parent_bounds[0, 1] - child_bounds[1, 1],
+                child_bounds[0, 1] - parent_bounds[1, 1],
+                0.0,
+            )
+            xy_gap = float(np.hypot(gap_x, gap_y))
+            parent_scale = float(np.max(parent_span))
+            parent_top = float(parent_bounds[1, 2])
+            vertical_gap = float(child_bounds[0, 2] - parent_top)
+            if xy_gap > max(0.05, 0.08 * parent_scale):
+                continue
+            if not -0.35 <= vertical_gap <= 0.25:
+                continue
+            containment = 0.0
+            parent_mask = mask_bounds.get(parent_id)
+            if child_mask is not None and parent_mask is not None:
+                containment = bbox_containment(child_mask[0], parent_mask[0])
+            size_penalty = 0.01 * np.log1p(parent_footprint / child_footprint)
+            score = abs(vertical_gap) + xy_gap + size_penalty
+            score += 0.05 * (1.0 - containment)
+            candidates.append((float(score), parent_id))
+        if candidates:
+            _, parent_id = min(candidates)
+            add_edge(child_id, parent_id, "Stack", "mask_geometry+3d_geometry")
     return edges
 
 
@@ -409,6 +764,7 @@ def prepare_sf_real2sim_inputs(args: argparse.Namespace) -> dict:
 
     report = json.loads(icp_report.read_text(encoding="utf-8"))
     object_names = read_object_names(object_file)
+    object_metadata = read_object_metadata(object_file.parent / "object_metadata.json")
     T_gravity_from_camera = load_gravity_transform(gravity_json)
 
     sf_root = args.refinement_dir / "sf_real2sim"
@@ -440,11 +796,22 @@ def prepare_sf_real2sim_inputs(args: argparse.Namespace) -> dict:
         if mask_src.exists():
             shutil.copy2(mask_src, obj_dir / "mask.png")
 
-        name = object_names[object_id] if object_id < len(object_names) else f"object_{object_id}"
+        metadata = object_metadata.get(object_id, {})
+        fallback_name = (
+            object_names[object_id]
+            if object_id < len(object_names)
+            else f"object_{object_id}"
+        )
+        name = str(metadata.get("prompt") or fallback_name)
+        label = str(metadata.get("name") or metadata.get("label") or name)
         objects_meta.append(
             {
                 "id": object_id,
                 "name": name,
+                "label": label,
+                "support_parent_id": metadata.get("support_parent_id"),
+                "support_relation": metadata.get("support_relation"),
+                "support_confidence": metadata.get("support_confidence"),
                 "obj_dir": str(obj_dir),
                 "mesh": str(mesh_dst),
                 "pose_camera": str(obj_dir / "pose_camera.txt"),
@@ -461,7 +828,7 @@ def prepare_sf_real2sim_inputs(args: argparse.Namespace) -> dict:
         scene_graph_source = str(args.scene_graph_input.expanduser().resolve())
     else:
         edges = infer_scene_graph_edges(objects_meta, support_ids)
-        scene_graph_source = "support_mask+caption+geometry"
+        scene_graph_source = "vlm_relations+caption_reference+mask_geometry+3d_geometry"
     supported_object_ids = {
         int(edge["source_id"])
         for edge in edges
@@ -905,10 +1272,20 @@ def main() -> int:
                     )
                     status["second_pass_validation"] = validation
                     status["status"] = "sf_ok"
-                    status["reason"] = (
-                        "Fixed projection -> SF -> projection -> SF pipeline completed "
-                        "and passed reprojection/support validation."
-                    )
+                    if validation["status"] == "ok":
+                        status["reason"] = (
+                            "Fixed projection -> SF -> projection -> SF pipeline completed "
+                            "and passed reprojection/support validation."
+                        )
+                    else:
+                        status["reason"] = (
+                            "Fixed projection -> SF -> projection -> SF pipeline completed; "
+                            "the final report contains unresolved inferred support relations."
+                        )
+                        status["warnings"] = [
+                            "One or more inferred support relations did not pass the final "
+                            "quality gate; no post-SF pose correction was applied."
+                        ]
         except Exception as exc:
             status["status"] = "sf_invalid"
             status["reason"] = f"Fixed two-pass physical refinement failed: {exc}"

@@ -14,7 +14,9 @@
 </p>
 
 
-RoboSnap reconstructs real-world scenes into simulation-ready assets from single RGB images, and the full implementation also supports short videos as input. Our **GUI tool** supports interactive segmentation, mask workspace management, mask-to-3D asset generation, scene composition, and articulated-object refinement. We also provide **a fully automatic pipeline** that transforms a single image into a layered simulation-ready scene with object assets and background context within around **20 minutes**.
+RoboSnap reconstructs real-world scenes into simulation-ready assets from single RGB images, and the full implementation also supports videos as input. Our **GUI tool** supports interactive segmentation, mask-to-3D asset generation, scene composition, and articulated-object segmentation. 
+
+We also provide **a fully automatic pipeline** that transforms a single image into a layered simulation-ready scene with object assets and background context within around **20 minutes**.
 
 More components from the paper, including **evaluation code**, **real-robot deployment code**, and the **DROID-Sim** dataset will be released soon **this month (07/26)**. Stay tuned!
 
@@ -38,7 +40,9 @@ export GEMINI_API_KEY=<your-api-key>
 bash scripts/run_auto_pipeline.sh
 ```
 
-The default adapter uses Gemini for object discovery and semantic background editing. Provider commands and input/output paths can be changed in `configs/auto_pipeline.env`. The final outputs are:
+The default adapter uses Gemini for object detection and semantic background editing. Provider commands and input/output paths can be changed in `configs/auto_pipeline.env`. 
+
+The final outputs include:
 
 ```text
 outputs/automatic/
@@ -48,7 +52,7 @@ outputs/automatic/
   pipeline_report.json
 ```
 
-Render an existing result with `bash scripts/render_gravity_aligned_scene.sh`.
+To render an existing result of a compositional scene, use `bash scripts/render_gravity_aligned_scene.sh`.
 
 See [docs/automatic_pipeline_setup.md](docs/automatic_pipeline_setup.md) for model downloads and environment overrides.
 
@@ -81,6 +85,7 @@ The GUI provides the recommended workflow for mask refinement and asset generati
 We provide an online Gradio demo to showcase the capabilities of the RoboSnap GUI tool.
 You can access the demo [here](https://0a1b81dfcc87953981.gradio.live).
 
+It's a preview of the function of the GUI and may expire or be unstable. Deploy the GUI locally for the best performance.
 
 ## Environment
 

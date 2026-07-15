@@ -85,4 +85,12 @@ feedback.md
 scripts/precompute_batch_vggt.py
 scripts/run_batch_layered_scenes.py
 scripts/run_batch_marble_alignment.py
+scripts/build_manual_marble_manifests.py
 scripts/run_foreground_inference.py
+
+# Local assistant and external image-edit batch tools
+scripts/assistant_vlm_objects_*.json
+scripts/finalize_external_imagegen_background.py
+scripts/remap_assistant_vlm_object_map.py
+scripts/run_assistant_vlm_mask_batch.py
+scripts/run_masks_for_external_imagegen.py

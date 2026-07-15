@@ -1,8 +1,6 @@
-"""
-layoutopt v3 的初始 pose 规则化。
+"""Regularize scene-graph poses before SF-Real2Sim optimization.
 
-这个文件只做一件事：在 SDF/SAPIEN 优化开始前，先根据 scene graph
-把明显不合理的初始位置粗调一下。这里只改平移，不改旋转。
+Only translations are adjusted; object rotations remain unchanged.
 """
 
 from __future__ import annotations

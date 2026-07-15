@@ -38,8 +38,8 @@ def _extract_vhacd_collision(mesh: trimesh.Trimesh) -> List[trimesh.Trimesh]:
     from vhacdx import compute_vhacd
 
 
-    mesh.remove_duplicate_faces()
-    mesh.remove_degenerate_faces()
+    mesh.update_faces(mesh.unique_faces())
+    mesh.update_faces(mesh.nondegenerate_faces())
     mesh.remove_unreferenced_vertices()
     mesh.process(validate=True)
 

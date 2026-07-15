@@ -37,8 +37,20 @@ OBJECT_SCHEMA = {
                         "minItems": 4,
                         "maxItems": 4,
                     },
+                    "support_parent_id": {"type": "integer", "minimum": -1},
+                    "support_relation": {
+                        "type": "string",
+                        "enum": ["on", "inside", "none"],
+                    },
                 },
-                "required": ["name", "prompt", "fallback_prompt", "bbox_xyxy"],
+                "required": [
+                    "name",
+                    "prompt",
+                    "fallback_prompt",
+                    "bbox_xyxy",
+                    "support_parent_id",
+                    "support_relation",
+                ],
             },
         }
     },
@@ -137,8 +149,20 @@ def parse_objects(text: str) -> dict[str, list[dict[str, Any]]]:
         prompt = str(item.get("prompt") or "").strip()
         fallback = str(item.get("fallback_prompt") or item.get("name") or "").strip()
         bbox = item.get("bbox_xyxy")
+        parent_id = int(item.get("support_parent_id", -1))
+        relation = str(item.get("support_relation") or "none").lower()
         if not prompt or not fallback or not isinstance(bbox, list) or len(bbox) != 4:
             raise ValueError(f"Object {index} is missing prompt, fallback_prompt, or bbox_xyxy.")
+        if relation not in {"on", "inside", "none"}:
+            raise ValueError(f"Object {index} has an invalid support_relation.")
+        if parent_id >= index or parent_id < -1:
+            raise ValueError(
+                f"Object {index} support_parent_id must reference an earlier object or -1."
+            )
+        if (parent_id == -1) != (relation == "none"):
+            raise ValueError(
+                f"Object {index} support_parent_id and support_relation disagree."
+            )
         bbox = [float(value) for value in bbox]
         if not all(math.isfinite(value) and 0.0 <= value <= 1.0 for value in bbox):
             raise ValueError(f"Object {index} bbox_xyxy must use normalized coordinates.")
@@ -150,6 +174,8 @@ def parse_objects(text: str) -> dict[str, list[dict[str, Any]]]:
                 "prompt": prompt,
                 "fallback_prompt": fallback,
                 "bbox_xyxy": bbox,
+                "support_parent_id": parent_id,
+                "support_relation": relation,
             }
         )
     return {"objects": normalized}

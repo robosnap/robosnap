@@ -48,4 +48,4 @@ components:
     required_for: Lyra-2 exploration video generation and DA3 Gaussian reconstruction
     license: "NVIDIA model/source license"
     license_file: third_party/lyra/LICENSE
-    notes: Recursive submodules are fetched and third_party/patches/lyra2-4090-offload.patch is applied; weights remain under checkpoints/.
+    notes: Recursive submodules are fetched and third_party/patches/lyra2-low-memory-inference.patch is applied; weights remain under checkpoints/.
