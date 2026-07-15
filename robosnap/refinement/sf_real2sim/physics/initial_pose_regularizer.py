@@ -1,6 +1,7 @@
-"""Regularize scene-graph poses before SF-Real2Sim optimization.
+"""
+Initial pose regularization for LayoutOpt v3.
 
-Only translations are adjusted; object rotations remain unchanged.
+This file does one thing only: before SDF/SAPIEN optimization begins, it uses the scene graph to roughly adjust obviously unreasonable initial positions. It modifies translation only, leaving rotation unchanged.
 """
 
 from __future__ import annotations
