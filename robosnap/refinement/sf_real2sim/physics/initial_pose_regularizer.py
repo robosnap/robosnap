@@ -1,8 +1,7 @@
 """
-layoutopt v3 的初始 pose 规则化。
+Initial pose regularization for LayoutOpt v3.
 
-这个文件只做一件事：在 SDF/SAPIEN 优化开始前，先根据 scene graph
-把明显不合理的初始位置粗调一下。这里只改平移，不改旋转。
+This file does one thing only: before SDF/SAPIEN optimization begins, it uses the scene graph to roughly adjust obviously unreasonable initial positions. It modifies translation only, leaving rotation unchanged.
 """
 
 from __future__ import annotations
