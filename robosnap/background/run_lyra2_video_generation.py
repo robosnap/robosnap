@@ -31,20 +31,12 @@ def ensure_lyra2_compat(lyra2_dir: Path) -> None:
         (lyra2_dir / "lyra_2" / "_src" / "inference" / "lyra2_ar_inference.py", "self.model._latest_condition_state_pixels = None"),
         (lyra2_dir / "lyra_2" / "_src" / "networks" / "wan2pt1_lyra2.py", "width * 2 * int(multires)"),
     )
-    if all(marker in path.read_text(encoding="utf-8") for path, marker in markers):
-        return
-    patch_file = Path(__file__).resolve().parents[2] / "third_party" / "patches" / "lyra2-4090-offload.patch"
-    if not patch_file.is_file():
-        raise FileNotFoundError(f"Lyra-2 compatibility patch not found: {patch_file}")
-    cmd = ["patch", "--forward", "--batch", "-p1", "-i", str(patch_file)]
-    proc = subprocess.run(cmd, cwd=lyra2_dir, text=True, capture_output=True)
-    if proc.returncode != 0:
-        detail = proc.stderr.strip() or proc.stdout.strip()
-        raise RuntimeError(f"Failed to apply Lyra-2 compatibility patch: {detail}")
-    if not all(marker in path.read_text(encoding="utf-8") for path, marker in markers):
-        raise RuntimeError("Lyra-2 compatibility patch did not produce the expected source markers")
-    print(f"[lyra-video] applied compatibility patch: {patch_file}")
-
+    missing = [str(path) for path, marker in markers if not path.is_file() or marker not in path.read_text(encoding="utf-8")]
+    if missing:
+        raise RuntimeError(
+            "Lyra does not contain the RoboSnap low-memory source revision. "
+            "Run bash scripts/setup_auto_sources.sh to restore the pinned submodule."
+        )
 
 
 def derive_conda_prefix(python_executable: str) -> Path | None:

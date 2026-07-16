@@ -18,6 +18,7 @@ INSTALL_ASSET=1
 INSTALL_ARTICULATE=1
 WRITE_ENV=1
 FORCE_ENV=0
+SETUP_SOURCES=1
 
 usage() {
   cat <<EOF
@@ -30,6 +31,7 @@ Options:
   --skip-gui             Skip the GUI/video segmentation env.
   --skip-asset           Skip the mask-to-3D asset env.
   --skip-articulate      Skip the Articulate Tool env.
+  --skip-sources         Do not initialize pinned source submodules.
   --gui-env NAME         Conda env name for GUI runtime. Default: ${GUI_ENV}
   --asset-env NAME       Conda env name for asset runtime. Default: ${ASSET_ENV}
   --articulate-env NAME  Conda env name for Articulate runtime. Default: ${ARTICULATE_ENV}
@@ -51,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     --skip-gui) INSTALL_GUI=0 ;;
     --skip-asset) INSTALL_ASSET=0 ;;
     --skip-articulate) INSTALL_ARTICULATE=0 ;;
+    --skip-sources) SETUP_SOURCES=0 ;;
     --gui-env) GUI_ENV="$2"; shift ;;
     --asset-env) ASSET_ENV="$2"; shift ;;
     --articulate-env) ARTICULATE_ENV="$2"; shift ;;
@@ -174,6 +177,13 @@ cd "${ROOT}"
 log "repo root: ${ROOT}"
 log "conda: ${CONDA_BIN}"
 confirm
+
+if [[ "${SETUP_SOURCES}" == "1" ]]; then
+  source_args=(--skip-vggt --skip-lyra)
+  [[ "${INSTALL_GUI}" != "1" ]] && source_args+=(--skip-sam3)
+  [[ "${INSTALL_ASSET}" != "1" ]] && source_args+=(--skip-sam3d)
+  run bash "${ROOT}/scripts/setup_auto_sources.sh" "${source_args[@]}"
+fi
 
 if [[ "${INSTALL_GUI}" == "1" ]]; then
   install_gui

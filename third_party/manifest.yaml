@@ -1,51 +1,54 @@
 components:
   - name: sam3
     release_path: third_party/sam3
-    local_source: adapted RoboSnap snapshot under release_path
-    status: synced_filtered_source_snapshot
-    required_for: interactive video segmentation
-    license: "SAM License (custom; not Apache-2.0)"
+    source: https://github.com/robosnap/sam3.git
+    source_commit: 16fff334254b7de76c2ae2fe8968fd85afc7d815
+    upstream: https://github.com/facebookresearch/sam3.git
+    upstream_commit: b26a5f330e05d321afb39d01d3d4881f258f65ff
+    status: modified_fork_submodule
+    required_for: image and video segmentation
+    license: "SAM License"
     license_file: third_party/sam3/LICENSE
-    redistribution_review: "Required before public release; modified SAM Materials must keep the SAM License and must not be described as Apache-2.0."
-    notes: Modified source should be vendored or published as a fork with a fixed commit.
 
   - name: sam-3d-objects
     release_path: third_party/sam-3d-objects
-    local_source: adapted RoboSnap snapshot under release_path
-    status: synced_filtered_source_snapshot
-    required_for: mask-to-asset 3D generation and scene composition
-    license: "SAM License (custom; not Apache-2.0)"
+    source: https://github.com/robosnap/sam-3d-objects.git
+    source_commit: 79dbb1f59adb7d4c4e16b1fe55ee38f52a1d12f0
+    upstream: https://github.com/facebookresearch/sam-3d-objects.git
+    upstream_commit: d8bcfa869b0de7fe7d9ed6a90b1086a8cd55751c
+    status: modified_fork_submodule
+    required_for: mask-to-asset generation and scene composition
+    license: "SAM License"
     license_file: third_party/sam-3d-objects/LICENSE
-    redistribution_review: "Required before public release; the snapshot includes nested third-party code with additional license files."
-    notes: Contains local changes for rendering, coordinate conversion, and scale extraction.
 
   - name: Hunyuan3D-Part/P3-SAM
     release_path: third_party/Hunyuan3D-Part
-    local_source: adapted RoboSnap snapshot under release_path
-    status: synced_filtered_source_snapshot
-    required_for: Articulate Tool subpage launched from the GUI
-    license: "Tencent Hunyuan 3D-Part Community License Agreement (custom; territory and use restrictions)"
+    upstream: https://github.com/Tencent-Hunyuan/Hunyuan3D-Part.git
+    status: adapted_source_snapshot
+    required_for: GUI Articulate Tool
+    license: "Tencent Hunyuan 3D-Part Community License Agreement"
     license_file: third_party/Hunyuan3D-Part/LICENSE
     notice_file: third_party/Hunyuan3D-Part/NOTICE
-    redistribution_review: "Required before public release; review territory, hosted-service, attribution, and acceptable-use terms."
-    notes: P3-SAM also requires `third_party/Hunyuan3D-Part/XPart/partgen` and a Sonata checkpoint/cache. LICENSE and NOTICE are preserved from the local upstream snapshot; review the Hunyuan community license terms before public release.
 
   - name: vggt
     release_path: third_party/vggt
-    local_source: https://github.com/facebookresearch/vggt.git
-    source_commit: a288dd0f14786c93483e45524328726ab7b1b4ce
-    status: fetched_by_pinned_installer
-    required_for: VGGT single-image depth/point cloud used by ICP refinement
-    license: "VGGT License (custom)"
+    source: https://github.com/facebookresearch/vggt.git
+    source_commit: 44b3afbd1869d8bde4894dd8ea1e293112dd5eba
+    status: official_submodule
+    required_for: depth, point-cloud projection, and ICP refinement
+    license: "VGGT License"
     license_file: third_party/vggt/LICENSE.txt
-    notes: Source is fetched by scripts/setup_auto_sources.sh; outputs and weights are excluded.
 
   - name: lyra
     release_path: third_party/lyra
-    local_source: https://github.com/nv-tlabs/lyra
-    source_commit: 87f79a52b81b366d1d4aa3a526aa12e54207c998
-    status: fetched_by_pinned_installer_and_patched
-    required_for: Lyra-2 exploration video generation and DA3 Gaussian reconstruction
+    source: https://github.com/robosnap/lyra.git
+    source_commit: 812d586ac7978b41c6dee560f99b07b1007e26fa
+    upstream: https://github.com/nv-tlabs/lyra.git
+    upstream_commit: 87f79a52b81b366d1d4aa3a526aa12e54207c998
+    status: modified_fork_submodule
+    required_for: exploration video generation and Gaussian reconstruction
     license: "NVIDIA model/source license"
     license_file: third_party/lyra/LICENSE
-    notes: Recursive submodules are fetched and third_party/patches/lyra2-low-memory-inference.patch is applied; weights remain under checkpoints/.
+    nested_submodules:
+      depth_anything_3: 1ed6cb8eee386a3c94077d907b09c7aa1c312cd8
+      vipe: b7cac64616763bc755009db79a1815c7cdc9b130

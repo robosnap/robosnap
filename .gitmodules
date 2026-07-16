@@ -1,0 +1,15 @@
+[submodule "third_party/sam3"]
+	path = third_party/sam3
+	url = https://github.com/robosnap/sam3.git
+	branch = robosnap-release
+[submodule "third_party/sam-3d-objects"]
+	path = third_party/sam-3d-objects
+	url = https://github.com/robosnap/sam-3d-objects.git
+	branch = robosnap-release
+[submodule "third_party/lyra"]
+	path = third_party/lyra
+	url = https://github.com/robosnap/lyra.git
+	branch = robosnap-release
+[submodule "third_party/vggt"]
+	path = third_party/vggt
+	url = https://github.com/facebookresearch/vggt.git

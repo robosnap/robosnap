@@ -48,8 +48,6 @@ robosnap/datasets/
 # Fetched or non-release third-party checkouts.
 third_party/DiffusionLight/
 third_party/FoundationPose/
-third_party/vggt/
-third_party/lyra/
 third_party/vipe/
 third_party/Grounded-SAM-2/
 # Upstream demos, evaluation assets, notebooks, and duplicate dependency sources.

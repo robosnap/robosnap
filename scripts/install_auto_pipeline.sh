@@ -43,7 +43,7 @@ Options:
   --skip-asset              Skip the SAM3D/VGGT/alignment runtime.
   --skip-lyra               Skip the Lyra runtime.
   --skip-sim                Skip the sim-ready runtime.
-  --skip-sources            Do not fetch pinned VGGT/Lyra sources.
+  --skip-sources            Do not initialize pinned source submodules.
   --no-write-env            Do not write configs/auto_pipeline.env.
   --force-env               Replace configs/auto_pipeline.env.
   --download-checkpoints    Download SAM3, gated SAM3D, and VGGT models.
@@ -360,7 +360,8 @@ confirm
 
 if [[ "${SETUP_SOURCES}" == "1" ]]; then
   source_args=()
-  [[ "${INSTALL_ASSET}" != "1" ]] && source_args+=(--skip-vggt)
+  [[ "${INSTALL_SAM3}" != "1" ]] && source_args+=(--skip-sam3)
+  [[ "${INSTALL_ASSET}" != "1" ]] && source_args+=(--skip-sam3d --skip-vggt)
   [[ "${INSTALL_LYRA}" != "1" ]] && source_args+=(--skip-lyra)
   run bash "${ROOT}/scripts/setup_auto_sources.sh" "${source_args[@]}"
 fi

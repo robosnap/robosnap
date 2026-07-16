@@ -1,40 +1,21 @@
-# Third-party Layout
+# Third-party Sources
 
-RoboSnap keeps adapted GUI dependencies under `third_party/`. The automatic-pipeline installer fetches its larger pinned sources.
-
-Release layout:
-
-```text
-third_party/
-  sam3/                         # modified SAM3 source snapshot
-  sam-3d-objects/               # modified SAM3D source snapshot
-  Hunyuan3D-Part/               # contains P3-SAM and XPart/partgen
-  vggt/                         # fetched by scripts/setup_auto_sources.sh
-  lyra/                         # fetched and patched by scripts/setup_auto_sources.sh
-```
-
-VGGT and Lyra are git-ignored source checkouts. Their URLs and commits are fixed in `scripts/setup_auto_sources.sh`; model weights stay under `checkpoints/`.
-Upstream demo media, evaluation data, notebooks, and duplicate Kaolin/mip-splatting source trees are omitted from the release snapshot. Runtime dependencies are installed by the environment scripts.
-
-Policy for release:
-
-- Keep the upstream license files inside each vendored third-party directory.
-- Record upstream URL, commit/tag, local source path, and local modifications in `manifest.yaml`.
-- Do not commit checkpoints or model weights. Put them under `checkpoints/` and document download commands.
-- Keep local compatibility changes as tracked patches or in the adapted source snapshot.
-
-## Release entrypoints
-
-Use the RoboSnap wrappers under `robosnap/` for pipeline execution. Vendored demo media, notebooks, evaluation data, and duplicate dependency sources are intentionally excluded.
-
-## License audit
-
-Before publishing, run:
+Initialize the pinned source revisions with:
 
 ```bash
-python3 scripts/gui/python/audit_third_party_licenses.py
-python3 scripts/gui/python/audit_third_party_licenses.py --fail-on-missing
-python3 scripts/gui/python/audit_third_party_licenses.py --all-components
+git submodule update --init --recursive
 ```
 
-Run `--all-components` after `scripts/setup_auto_sources.sh` has fetched VGGT and Lyra.
+The Conda installers call `scripts/setup_auto_sources.sh` automatically. The same script fetches the exact revisions when Git metadata is unavailable inside a Docker build.
+
+| Path | Source | Revision |
+| --- | --- | --- |
+| `sam3` | [`robosnap/sam3`](https://github.com/robosnap/sam3) | `16fff334254b7de76c2ae2fe8968fd85afc7d815` |
+| `sam-3d-objects` | [`robosnap/sam-3d-objects`](https://github.com/robosnap/sam-3d-objects) | `79dbb1f59adb7d4c4e16b1fe55ee38f52a1d12f0` |
+| `lyra` | [`robosnap/lyra`](https://github.com/robosnap/lyra) | `812d586ac7978b41c6dee560f99b07b1007e26fa` |
+| `vggt` | [`facebookresearch/vggt`](https://github.com/facebookresearch/vggt) | `44b3afbd1869d8bde4894dd8ea1e293112dd5eba` |
+| `Hunyuan3D-Part` | [`Tencent-Hunyuan/Hunyuan3D-Part`](https://github.com/Tencent-Hunyuan/Hunyuan3D-Part) | RoboSnap GUI snapshot |
+
+SAM3, SAM-3D-Objects, and Lyra use RoboSnap forks because the release depends on source changes in those repositories. VGGT is unmodified and pinned to the official revision matching the validated pipeline. Model weights remain under `checkpoints/` and are not committed.
+
+`DiffusionLight`, `FoundationPose`, `Grounded-SAM-2`, and a separate top-level VIPE checkout are not dependencies of the released GUI or automatic pipeline.

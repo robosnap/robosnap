@@ -2,12 +2,20 @@
 set -euo pipefail
 
 ROOT="${ROBOSNAP_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+SAM3_DIR="${SAM3_DIR:-${ROOT}/third_party/sam3}"
+SAM3D_DIR="${SAM3D_DIR:-${ROOT}/third_party/sam-3d-objects}"
 VGGT_DIR="${VGGT_DIR:-${ROOT}/third_party/vggt}"
 LYRA_DIR="${LYRA_DIR:-${ROOT}/third_party/lyra}"
+SAM3_URL="${SAM3_URL:-https://github.com/robosnap/sam3.git}"
+SAM3D_URL="${SAM3D_URL:-https://github.com/robosnap/sam-3d-objects.git}"
 VGGT_URL="${VGGT_URL:-https://github.com/facebookresearch/vggt.git}"
-LYRA_URL="${LYRA_URL:-https://github.com/nv-tlabs/lyra.git}"
-VGGT_COMMIT="${VGGT_COMMIT:-a288dd0f14786c93483e45524328726ab7b1b4ce}"
-LYRA_COMMIT="${LYRA_COMMIT:-87f79a52b81b366d1d4aa3a526aa12e54207c998}"
+LYRA_URL="${LYRA_URL:-https://github.com/robosnap/lyra.git}"
+SAM3_COMMIT="${SAM3_COMMIT:-16fff334254b7de76c2ae2fe8968fd85afc7d815}"
+SAM3D_COMMIT="${SAM3D_COMMIT:-79dbb1f59adb7d4c4e16b1fe55ee38f52a1d12f0}"
+VGGT_COMMIT="${VGGT_COMMIT:-44b3afbd1869d8bde4894dd8ea1e293112dd5eba}"
+LYRA_COMMIT="${LYRA_COMMIT:-812d586ac7978b41c6dee560f99b07b1007e26fa}"
+SETUP_SAM3=1
+SETUP_SAM3D=1
 SETUP_VGGT=1
 SETUP_LYRA=1
 
@@ -15,17 +23,21 @@ usage() {
   cat <<EOF
 Usage: bash scripts/setup_auto_sources.sh [options]
 
-Fetch the pinned VGGT and Lyra source trees used by the automatic pipeline.
+Initialize the commit-pinned source trees used by RoboSnap.
 
 Options:
-  --skip-vggt     Do not fetch VGGT.
-  --skip-lyra     Do not fetch or patch Lyra.
+  --skip-sam3     Do not initialize SAM3.
+  --skip-sam3d    Do not initialize SAM-3D-Objects.
+  --skip-vggt     Do not initialize VGGT.
+  --skip-lyra     Do not initialize Lyra.
   -h, --help      Show this help.
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --skip-sam3) SETUP_SAM3=0 ;;
+    --skip-sam3d) SETUP_SAM3D=0 ;;
     --skip-vggt) SETUP_VGGT=0 ;;
     --skip-lyra) SETUP_LYRA=0 ;;
     -h|--help) usage; exit 0 ;;
@@ -35,14 +47,40 @@ while [[ $# -gt 0 ]]; do
 done
 
 log() {
-  printf '[sources] %s\n' "$*"
+  printf "[sources] %s\n" "$*"
 }
 
 run() {
-  printf '[sources]'
-  printf ' %q' "$@"
-  printf '\n'
+  printf "[sources]"
+  printf " %q" "$@"
+  printf "\n"
   "$@"
+}
+
+is_source_checkout() {
+  local target="$1"
+  [[ -e "${target}/.git" ]] || return 1
+  [[ -z "$(git -C "${target}" rev-parse --show-prefix 2>/dev/null)" ]]
+}
+
+validate_source() {
+  local name="$1"
+  local commit="$2"
+  local target="$3"
+  local marker="$4"
+
+  if [[ ! -e "${target}/${marker}" ]]; then
+    echo "${name} checkout is missing ${marker}: ${target}" >&2
+    exit 1
+  fi
+  if is_source_checkout "${target}"; then
+    local actual
+    actual="$(git -C "${target}" rev-parse HEAD)"
+    if [[ "${actual}" != "${commit}" ]]; then
+      echo "${name} is at ${actual}; expected ${commit}: ${target}" >&2
+      exit 1
+    fi
+  fi
 }
 
 fetch_source() {
@@ -50,28 +88,16 @@ fetch_source() {
   local url="$2"
   local commit="$3"
   local target="$4"
-  local marker="$5"
-  local recursive="$6"
+  local recursive="$5"
 
-  if [[ -e "${target}/${marker}" ]]; then
-    if [[ -d "${target}/.git" ]]; then
-      local actual
-      actual="$(git -C "${target}" rev-parse HEAD)"
-      if [[ "${actual}" != "${commit}" ]]; then
-        echo "${name} exists at ${actual}; expected ${commit}: ${target}" >&2
-        exit 1
-      fi
-      log "${name} is pinned at ${commit}"
-    else
-      log "using existing ${name} source snapshot: ${target}"
-    fi
-    return 0
-  fi
   if [[ -e "${target}" ]]; then
-    echo "Refusing to replace incomplete source directory: ${target}" >&2
-    exit 1
+    if [[ -d "${target}" && -z "$(find "${target}" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+      rmdir "${target}"
+    else
+      echo "Refusing to replace incomplete source directory: ${target}" >&2
+      exit 1
+    fi
   fi
-
   run mkdir -p "$(dirname "${target}")"
   run git init "${target}"
   run git -C "${target}" remote add origin "${url}"
@@ -80,40 +106,52 @@ fetch_source() {
   if [[ "${recursive}" == "1" ]]; then
     run git -C "${target}" submodule update --init --recursive --depth 1
   fi
-  if [[ ! -e "${target}/${marker}" ]]; then
-    echo "${name} checkout is missing ${marker}: ${target}" >&2
-    exit 1
-  fi
 }
 
-apply_lyra_patch() {
-  local lyra2="${LYRA_DIR}/Lyra-2"
-  local patch_file="${ROOT}/third_party/patches/lyra2-low-memory-inference.patch"
-  if [[ ! -f "${patch_file}" ]]; then
-    echo "Missing Lyra compatibility patch: ${patch_file}" >&2
-    exit 1
+setup_source() {
+  local name="$1"
+  local relative="$2"
+  local url="$3"
+  local commit="$4"
+  local marker="$5"
+  local recursive="$6"
+  local target
+  case "${relative}" in
+    third_party/sam3) target="${SAM3_DIR}" ;;
+    third_party/sam-3d-objects) target="${SAM3D_DIR}" ;;
+    third_party/vggt) target="${VGGT_DIR}" ;;
+    third_party/lyra) target="${LYRA_DIR}" ;;
+    *) echo "Unknown source path: ${relative}" >&2; exit 2 ;;
+  esac
+
+  if [[ -e "${target}/${marker}" ]]; then
+    validate_source "${name}" "${commit}" "${target}" "${marker}"
+    log "${name} ready at ${commit}"
+    return
   fi
-  if git -C "${lyra2}" apply --check "${patch_file}"; then
-    log "applying Lyra low-memory inference compatibility patch"
-    git -C "${lyra2}" apply "${patch_file}"
-  elif git -C "${lyra2}" apply --reverse --check "${patch_file}"; then
-    log "Lyra compatibility patch is already applied"
+
+  local module_path=""
+  if [[ -f "${ROOT}/.gitmodules" ]]; then
+    module_path="$(git -C "${ROOT}" config -f .gitmodules --get "submodule.${relative}.path" 2>/dev/null || true)"
+  fi
+  if [[ "${target}" == "${ROOT}/${relative}" ]] && git -C "${ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1 && [[ "${module_path}" == "${relative}" ]]; then
+    run git -C "${ROOT}" submodule sync -- "${relative}"
+    run git -C "${ROOT}" submodule update --init --recursive --depth 1 -- "${relative}"
   else
-    echo "Lyra compatibility patch does not match ${lyra2}" >&2
-    exit 1
+    fetch_source "${name}" "${url}" "${commit}" "${target}" "${recursive}"
   fi
+  validate_source "${name}" "${commit}" "${target}" "${marker}"
+  log "${name} ready at ${commit}"
 }
 
 if ! command -v git >/dev/null 2>&1; then
   echo "git is required." >&2
   exit 127
 fi
-if [[ "${SETUP_VGGT}" == "1" ]]; then
-  fetch_source "VGGT" "${VGGT_URL}" "${VGGT_COMMIT}" "${VGGT_DIR}" "vggt/models/vggt.py" 0
-fi
-if [[ "${SETUP_LYRA}" == "1" ]]; then
-  fetch_source "Lyra" "${LYRA_URL}" "${LYRA_COMMIT}" "${LYRA_DIR}" "Lyra-2/lyra_2/_src/inference/lyra2_zoomgs_inference.py" 1
-  apply_lyra_patch
-fi
+
+[[ "${SETUP_SAM3}" == "1" ]] && setup_source "SAM3" "third_party/sam3" "${SAM3_URL}" "${SAM3_COMMIT}" "inference_image.py" 0
+[[ "${SETUP_SAM3D}" == "1" ]] && setup_source "SAM-3D-Objects" "third_party/sam-3d-objects" "${SAM3D_URL}" "${SAM3D_COMMIT}" "sam3d_objects/image2glb.py" 0
+[[ "${SETUP_VGGT}" == "1" ]] && setup_source "VGGT" "third_party/vggt" "${VGGT_URL}" "${VGGT_COMMIT}" "vggt/models/vggt.py" 0
+[[ "${SETUP_LYRA}" == "1" ]] && setup_source "Lyra" "third_party/lyra" "${LYRA_URL}" "${LYRA_COMMIT}" "Lyra-2/lyra_2/_src/inference/lyra2_zoomgs_inference.py" 1
 
 log "done"

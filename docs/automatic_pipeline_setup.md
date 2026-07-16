@@ -4,6 +4,12 @@
 
 Requirements: Ubuntu 22.04, an NVIDIA driver compatible with CUDA 12.8, Conda, and Git.
 
+The installer initializes the commit-pinned source submodules automatically. A manual source-only setup is also available:
+
+~~~bash
+bash scripts/setup_auto_sources.sh
+~~~
+
 ~~~bash
 bash scripts/install_auto_pipeline.sh -y
 ~~~
@@ -17,7 +23,7 @@ The installer creates:
 | robosnap-lyra | Lyra-2 video generation and Gaussian reconstruction |
 | robosnap-sim | RoboSnap SF-Real2Sim refinement |
 
-The four runtimes are isolated for their incompatible CUDA and PyTorch requirements. The installer fetches pinned VGGT and Lyra sources and writes `configs/auto_pipeline.env`; users still run the pipeline through one command.
+The four runtimes are isolated for their incompatible CUDA and PyTorch requirements. The installer initializes the pinned SAM3, SAM-3D-Objects, VGGT, and Lyra sources and writes `configs/auto_pipeline.env`; users still run the pipeline through one command.
 
 Authenticate with Hugging Face before downloading gated SAM3D weights:
 
