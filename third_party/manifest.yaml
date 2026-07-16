@@ -23,8 +23,11 @@ components:
 
   - name: Hunyuan3D-Part/P3-SAM
     release_path: third_party/Hunyuan3D-Part
+    source: https://github.com/robosnap/Hunyuan3D-Part.git
+    source_commit: b58568a328202bde2921e7d7e01368c7f558ecb3
     upstream: https://github.com/Tencent-Hunyuan/Hunyuan3D-Part.git
-    status: adapted_source_snapshot
+    upstream_commit: e96be065375438962375b55326416291342958a7
+    status: modified_fork_submodule
     required_for: GUI Articulate Tool
     license: "Tencent Hunyuan 3D-Part Community License Agreement"
     license_file: third_party/Hunyuan3D-Part/LICENSE

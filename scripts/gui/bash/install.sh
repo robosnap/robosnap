@@ -182,6 +182,7 @@ if [[ "${SETUP_SOURCES}" == "1" ]]; then
   source_args=(--skip-vggt --skip-lyra)
   [[ "${INSTALL_GUI}" != "1" ]] && source_args+=(--skip-sam3)
   [[ "${INSTALL_ASSET}" != "1" ]] && source_args+=(--skip-sam3d)
+  [[ "${INSTALL_ARTICULATE}" != "1" ]] && source_args+=(--skip-hunyuan)
   run bash "${ROOT}/scripts/setup_auto_sources.sh" "${source_args[@]}"
 fi
 

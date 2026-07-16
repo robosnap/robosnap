@@ -359,7 +359,7 @@ log "conda: ${CONDA_BIN}"
 confirm
 
 if [[ "${SETUP_SOURCES}" == "1" ]]; then
-  source_args=()
+  source_args=(--skip-hunyuan)
   [[ "${INSTALL_SAM3}" != "1" ]] && source_args+=(--skip-sam3)
   [[ "${INSTALL_ASSET}" != "1" ]] && source_args+=(--skip-sam3d --skip-vggt)
   [[ "${INSTALL_LYRA}" != "1" ]] && source_args+=(--skip-lyra)

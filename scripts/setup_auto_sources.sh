@@ -6,18 +6,22 @@ SAM3_DIR="${SAM3_DIR:-${ROOT}/third_party/sam3}"
 SAM3D_DIR="${SAM3D_DIR:-${ROOT}/third_party/sam-3d-objects}"
 VGGT_DIR="${VGGT_DIR:-${ROOT}/third_party/vggt}"
 LYRA_DIR="${LYRA_DIR:-${ROOT}/third_party/lyra}"
+HUNYUAN_DIR="${HUNYUAN_DIR:-${ROOT}/third_party/Hunyuan3D-Part}"
 SAM3_URL="${SAM3_URL:-https://github.com/robosnap/sam3.git}"
 SAM3D_URL="${SAM3D_URL:-https://github.com/robosnap/sam-3d-objects.git}"
 VGGT_URL="${VGGT_URL:-https://github.com/facebookresearch/vggt.git}"
 LYRA_URL="${LYRA_URL:-https://github.com/robosnap/lyra.git}"
+HUNYUAN_URL="${HUNYUAN_URL:-https://github.com/robosnap/Hunyuan3D-Part.git}"
 SAM3_COMMIT="${SAM3_COMMIT:-16fff334254b7de76c2ae2fe8968fd85afc7d815}"
 SAM3D_COMMIT="${SAM3D_COMMIT:-79dbb1f59adb7d4c4e16b1fe55ee38f52a1d12f0}"
 VGGT_COMMIT="${VGGT_COMMIT:-44b3afbd1869d8bde4894dd8ea1e293112dd5eba}"
 LYRA_COMMIT="${LYRA_COMMIT:-812d586ac7978b41c6dee560f99b07b1007e26fa}"
+HUNYUAN_COMMIT="${HUNYUAN_COMMIT:-b58568a328202bde2921e7d7e01368c7f558ecb3}"
 SETUP_SAM3=1
 SETUP_SAM3D=1
 SETUP_VGGT=1
 SETUP_LYRA=1
+SETUP_HUNYUAN=1
 
 usage() {
   cat <<EOF
@@ -30,6 +34,7 @@ Options:
   --skip-sam3d    Do not initialize SAM-3D-Objects.
   --skip-vggt     Do not initialize VGGT.
   --skip-lyra     Do not initialize Lyra.
+  --skip-hunyuan  Do not initialize Hunyuan3D-Part.
   -h, --help      Show this help.
 EOF
 }
@@ -40,6 +45,7 @@ while [[ $# -gt 0 ]]; do
     --skip-sam3d) SETUP_SAM3D=0 ;;
     --skip-vggt) SETUP_VGGT=0 ;;
     --skip-lyra) SETUP_LYRA=0 ;;
+    --skip-hunyuan) SETUP_HUNYUAN=0 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -121,6 +127,7 @@ setup_source() {
     third_party/sam-3d-objects) target="${SAM3D_DIR}" ;;
     third_party/vggt) target="${VGGT_DIR}" ;;
     third_party/lyra) target="${LYRA_DIR}" ;;
+    third_party/Hunyuan3D-Part) target="${HUNYUAN_DIR}" ;;
     *) echo "Unknown source path: ${relative}" >&2; exit 2 ;;
   esac
 
@@ -153,5 +160,6 @@ fi
 [[ "${SETUP_SAM3D}" == "1" ]] && setup_source "SAM-3D-Objects" "third_party/sam-3d-objects" "${SAM3D_URL}" "${SAM3D_COMMIT}" "sam3d_objects/image2glb.py" 0
 [[ "${SETUP_VGGT}" == "1" ]] && setup_source "VGGT" "third_party/vggt" "${VGGT_URL}" "${VGGT_COMMIT}" "vggt/models/vggt.py" 0
 [[ "${SETUP_LYRA}" == "1" ]] && setup_source "Lyra" "third_party/lyra" "${LYRA_URL}" "${LYRA_COMMIT}" "Lyra-2/lyra_2/_src/inference/lyra2_zoomgs_inference.py" 1
+[[ "${SETUP_HUNYUAN}" == "1" ]] && setup_source "Hunyuan3D-Part" "third_party/Hunyuan3D-Part" "${HUNYUAN_URL}" "${HUNYUAN_COMMIT}" "P3-SAM/demo/app.py" 0
 
 log "done"

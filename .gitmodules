@@ -13,3 +13,7 @@
 [submodule "third_party/vggt"]
 	path = third_party/vggt
 	url = https://github.com/facebookresearch/vggt.git
+[submodule "third_party/Hunyuan3D-Part"]
+	path = third_party/Hunyuan3D-Part
+	url = https://github.com/robosnap/Hunyuan3D-Part.git
+	branch = main
