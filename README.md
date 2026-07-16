@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="assets/robosnap_logo.svg" alt="RoboSnap" height="50">
+  <img src="assets/github_title.png" alt="RoboSnap" height="50">
 </h1>
 
 <p align="center">One-Shot Real-to-Sim Scene Generation for Generalizable Robot Learning and Evaluation</p>
